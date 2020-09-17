@@ -8,7 +8,7 @@ The NeoRack specification is designed to offer a solution for these shortcomings
 
 * Making polling, streaming and long requests first class citizens.
 
-* Supporting startup-time tests for server features.
+* Supporting server feature testing during startup (rather than during response execution).
 
 * Supporting server extensions that can be implemented by either the server or external gems.
 
