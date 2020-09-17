@@ -4,7 +4,7 @@ This NeoRack extension describes a connection hijacking API that allows for back
 
 ## Extension Name
 
-NeoRack Servers that implement this extension **MUST** set `extensions[:hijack]` to it is equal to `[1,0,0].freeze`.
+NeoRack Servers that implement this extension **MUST** set `extensions[:hijack]` so it is equal to `[1,0,0].freeze`.
 
 NeoRack Servers that implement this extension **MUST** set `classes[:hijack]` to the class of the object returned by `response.hijack`.
 
