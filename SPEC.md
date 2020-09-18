@@ -250,13 +250,31 @@ The `option` hash **MUST** recognize the following Symbols for setting cookies (
 
 #### `write(data, offset = 0, length = nil)`
 
-Adds an object `data` to the response payload (body).
+**MUST** raise an exception if `finished?` would have returned `true`.
+
+If `streaming?` is `false`, the Server **MUST**:
+
+* Add the data to be sent to the response payload (body), unless `request[:method] == 'HEAD'`.
+
+If `streaming?` is `true`, the Server **MUST**:
+
+* Unless previously performed:
+
+    * Update the `'transfer-encoding'` header as required by the protocol, unless the `'content-length'` header was previously set or the server knows the final length of the data to be sent.
+
+    * Validate and send the status and header data.
+
+* If `request[:method] == 'HEAD'`, return at this point without further processing.
+
+* Add the data to be sent to the response payload (body).
+
+* Send any pending data in the response payload / body (or schedule to do so) using the proper encoding scheme (streaming responses my need to be `chunked`).
+
+**Note**: depending on their design, Servers **MAY** block to until the data was actually sent through the socket.
 
 Returns `self` (the `response` object).
 
-**MUST** raise an exception if `finished?` would have returned `true`.
-
-`data` **MUST** be either:
+`data` **MUST** either:
 
 * Be a String instance object.
 
@@ -268,25 +286,19 @@ If `length` is set, up to `length` bytes from the `data` object will be sent. `l
 
 Servers **MUST** test the `length` value for overflow whenever possible. If `length` overflows it is **NOT** an error, but it could cause network errors that the Server **MUST** properly handle.
 
-If `streaming?` would return `true`, the Server **MUST NOT** wait before preparing to send the data.
-
-**Note**: Servers **MAY** block to until the data was actually sent through the socket.
-
 #### `<<`
 
 The `<<` method is an alias to `write`.
 
 #### `stream`
 
-Starts streaming the response. If `request[:method] == 'HEAD'`, the method call **MUST** call `finish` and return instead.
+Sets the response to streaming.
 
 Returns `self` (the `response` object).
 
 **MUST** raise an exception if `finished?` would have returned `true`.
 
-Servers **MUST** prepare to send the status, headers and any previously scheduled data at this point.
-
-Servers **MUST** also use the proper encoding and update the proper `'transfer-encoding'` header (for streaming responses) unless the `'content-length'` header was previously set.
+If `write` was previously called, perform all necessary operations as if the call to `write` was performed after the call to `stream` - i.e., update the proper `'transfer-encoding'` header, validate and send the status and header data, etc'.
 
 #### `streaming?`
 
@@ -294,17 +306,19 @@ Servers **MUST** also use the proper encoding and update the proper `'transfer-e
 
 Otherwise, **MUST** return `true`.
 
-#### `finish`
-
-Finalizes the response.
+#### `finish(data = nil, offset = 0, length = nil)`
 
 **SHOULD** raise an exception if `finished?` would have returned `true`, but **MAY** quietly fail without doing anything.
 
-The Server **MUST** prepare to send the status, headers and data at this point.
+The Server **MUST**:
 
-For non-streaming responses, the Server **MUST** also set the `'content-length'` header if missing or inaccurate.
+* Call `write` if `data` isn't `nil`. If `stream` was previously called but no data was previously sent (`write` wasn't called previously), the Server **SHOULD** behave as if the `stream` method was never called (i.e., set `'content-length'` rather than stream).
 
-The Server **MUST** call (or schedule) all the `run_after` callbacks at this point.
+* Unless previously performed, validate and send the status and header data.
+
+* Unless `request[:method] == 'HEAD'`, send any pending data in the response payload / body (or schedule to do so) using the proper encoding scheme.
+
+* Call (or schedule) all the `run_after` callbacks.
 
 #### `finished?`
 
