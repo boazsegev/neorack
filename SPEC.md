@@ -34,7 +34,7 @@ end
 
 The NeoRack Request Object (`request`) **SHOULD** be an instance of a class that inherits from `Hash` (but is **NOT** an instance of `Hash`) and **MUST** implement the following "Hash-like" methods: `[]`, `[]=`, `each`, `size`, `has_key?` and `merge!` in the same way they are implemented by `Hash`.
 
-The `requuest` object **MAY** be used by Applications and/or Extensions to store and/or communicate data relevant to the request.
+The `request` object **MAY** be used by Applications and/or Extensions to store and/or communicate additional data relevant to the request.
 
 **Note**: during Server initialization, an application might `extend` or `include` its own modules into the Server's Request class. For this reason it is better if that class is not the Hash class itself.
 
@@ -112,19 +112,19 @@ All HTTP headers, **MUST** be set as key-value pairs in the `request` where the 
 
 Header names **MUST** be converted into their lower case equivalent before the key-value pair is set (i.e., `"Content-Length"` MUST be converted to `"content-length"`).
 
-Unless the Server implements the `:backwards_compatible` extension, HTTP headers **MUST** be the **ONLY** String keys in the `request` set by the Server or by any Extension. Otherwise, it might make it impossible to implemented a `:backwards_compatible` extension (see further on).
+Unless the Server implements the `:backwards_compatible` extension (see further on), HTTP headers **MUST** be the **ONLY** String keys in the `request` set by the Server or by any of its Extension. Otherwise, it might make it impossible to implemented a `:backwards_compatible` extension.
 
-If a header arrives only once (the common case), it's value **MUST** be set as a String instance object.
+When a header arrives only once, it's value **MUST** be set as a String instance object.
 
-Headers that arrive more than once **SHOULD** be set as an Array of Strings, where array is ordered by order of header value arrival (i.e., `headers['cache-control'] = ['no-cache', 'no-store']`)
+Headers that arrive more than once **SHOULD** be set as an Array of Strings, ordered by header value arrival (i.e., `headers['cache-control'] = ['no-cache', 'no-store']`)
 
-**ONLY IF** [the HTTP protocols allows for this variation](https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2), Servers **MAY** also merge the header values into a single comma separated value list String instance or separate a single header into an Array of Strings.
+**ONLY IF** [the HTTP protocols allows for this variation](https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2), Servers **MAY** also merge header values into a single comma separated value String instance or separate a single header into an Array of Strings.
 
 NeoRack Applications and Extensions **MUST** be prepared to handle both variations (Array / String).
 
 ### HTTP Request Body
 
-The NeoRack Request Body (`request[:body]`) is an IO-like object which contains the raw HTTP POST data (payload / body). It is backwards compatible with the original Rack specification with the addition of two methods: `length` and `type`.
+The NeoRack Request Body (`request[:body]`) is an IO-like object which contains the raw HTTP POST data (payload / body). It is backwards compatible with the original Rack specification with the addition of the methods `length`.
 
 When no HTTP payload / body was received, `request[:body]` **SHOULD** be `nil`, but **MAY** be a Request Body Object that maps to an empty String.
 
@@ -138,7 +138,7 @@ The `request[:body]` object (if set) **MUST** respond to IO style methods `gets`
 
 If given, `length` **MUST** be a non-negative Integer (>= 0) or `nil`,
 
-If `length` is given and not `nil`, then this method reads at most length bytes from the body object.
+If `length` is given and not `nil`, then this method reads at most `length` bytes from the body object.
 
 If `length` is not given or `nil`, then this method reads all data until `EOF`.
 
@@ -156,15 +156,15 @@ If `buffer` is given, then the read data will be placed into `buffer` instead of
 
 **MUST** be called without arguments. It rewinds the body object back to the beginning. It **MUST NOT** raise `Errno::ESPIPE`: that is, it may not be a pipe or a socket. Therefore, developers **MUST** buffer the input data into some rewindable object if the underlying body object is not rewindable.
 
-#### `close`
-
-**MUST NOT** be called on the body object except by the Server.
-
 #### `length`
 
 Returns the length of the data in the body object.
 
 **Note**: Applications **SHOULD NOT** access the `'content-length'` header using the request object and **SHOULD** prefer to access this data using the `request[:body]` object (`request[:body].length`).
+
+#### `close`
+
+**MUST NOT** be called on the body object except by the Server.
 
 ## The NeoRack Response Object
 
@@ -194,7 +194,7 @@ If either `name` or `value` are `nil`, does nothing (returns, no exception is ra
 
 The header `name` **SHOULD** be lowercase, but Servers **SHOULD** expect application to be inconsistent in this regard.
 
-The Server **MAY** perform any additional action, such as sending an Early Hints responses or invoking an HTTP push promise request for `'link'` headers, attempt to auto-correct or rewrite header data, etc'. Such behavior **SHOULD** be documented.
+The Server **MAY** perform any additional action, such as sending an *Early Hints* responses or invoking an HTTP/2 *push promise* request for `'link'` headers, attempt to auto-correct or rewrite header data, etc'. Such behavior **SHOULD** be documented.
 
 **MUST** raise an exception if either `streaming?` or `finished?` would have returned `true`.
 
@@ -222,31 +222,33 @@ Servers **SHOULD NOT** encode cookie data (names / value). Encoding the data is 
 
 `name` and `value` **MUST** be either `nil` or a String object. Otherwise an `ArgumentError` exception **MUST** be raised. **Note**: empty String objects are valid, but **SHOULD** be avoided by the Applications.
 
-If `name` is an invalid cookie name or `value` is an invalid cookie value, behavior is undefined (see [here](https://tools.ietf.org/html/rfc6265) and [here](https://stackoverflow.com/questions/1969232/what-are-allowed-characters-in-cookies)). The Server **MAY** attempt to auto-correct the issue, raise and exception, quietly fail, etc'.
+If `name` is an invalid cookie name or `value` is an invalid cookie value, behavior is undefined (see [here](https://tools.ietf.org/html/rfc6265) and [here](https://stackoverflow.com/questions/1969232/what-are-allowed-characters-in-cookies)). The Server **MAY** attempt to auto-correct the issue, raise and exception, quietly fail, drop the connection, etc'.
 
 The `option` hash **MUST** recognize the following Symbols for setting cookies (see also the [`Set-Cookie` header details](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)):
 
-* `:path`       - A path that must exist in the requested URL, or the browser won't send the Cookie header.
+* `:path`       - (String) A path that must exist in the requested URL, or the browser won't send the Cookie header.
 
-* `:domain`     - The domain for which this cookie applies. Valid a specific domain String object (i.e. `'example.com'`). Note that subdomains are always allowed.
+* `:domain`     - (String) The domain for which this cookie applies. Valid a specific domain String object (i.e. `'example.com'`). Note that subdomains are always allowed.
 
-* `:same_site`  - If set, **MUST** be either `:strict`, `:lax` or `:none`. [Read details here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie).
+* `:same_site`  - (Boolean) If set, **MUST** be either `:strict`, `:lax` or `:none`. [Read details here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie).
 
-* `:secure`     - A secure cookie is only sent to the server when a request is made with the `https` scheme.
+* `:secure`     - (Boolean) A secure cookie is only sent to the server when a request is made with the `https` scheme.
 
-* `:http_only`  - if `true`, forbids JavaScript from accessing the cookie through a script (i.e, using `document.cookie`).
+* `:http_only`  - (Boolean) If `true`, forbids JavaScript from accessing the cookie through a script (i.e, using `document.cookie`).
 
    **Note**: The cookie is still sent with JavaScript originated requests. 
 
-* `:max_age`    - The number of seconds until the cookie expires. A zero or negative number will expire the cookie immediately.
+* `:max_age`    - (Number) The number of seconds until the cookie expires. A zero or negative number will expire the cookie immediately.
 
-* `:expires`    - **SHOULD** be considered deprecated by Application developers. It is only provided for backwards compatibility.
+* `:expires`    - (Number / Time) **SHOULD** be considered deprecated by Application developers. It is only provided for compatibility purposes.
 
     `:expires` is the maximum "due date" lifetime for the cookie as either a number (Unix style time stamp) or a Ruby Time instance object. If provided, servers **MUST** translate the time stamp into an HTTP Date format.
 
     If both `:max_age` and `:expires` are set, `:max_age` **MUST** be preferred and `:expires` **SHOULD** be ignored. Servers **MAY** send both values (`Max-Age` always has precedence).
 
     If only `:expires` is set, the Server **MAY** convert `:expires` to `:max_age` values.
+
+**Note**: if both `:max_age` and `:expires` are missing, the cookie will be considered a session cookie by the client.
 
 #### `write(data, offset = 0, length = nil)`
 
@@ -278,13 +280,15 @@ Returns `self` (the `response` object).
 
 * Be a String instance object.
 
+* Respond to both `to_path` and `close`, allowing the Server to `close` the object and send it from disk (possibly in that order).
+
 * Respond to both `fileno` and `close`, allowing the Server to take ownership of the IO device and stream it.
 
 If `offset` is set, the first `offset` bytes in the `data` object are ignored (not sent). `offset` **MUST** be a Number.
 
 If `length` is set, up to `length` bytes from the `data` object will be sent. `length` **MUST** be either `nil` or a Number.
 
-Servers **MUST** test the `length` value for overflow whenever possible. If `length` overflows it is **NOT** an error, but it could cause network errors that the Server **MUST** properly handle.
+Servers **MUST** test the `length` value for overflow whenever possible (may not be always possible). If `length` overflows it is **NOT** an error, but it could cause network errors that the Server **MUST** properly handle or require that the response be streamed.
 
 #### `<<`
 
@@ -292,17 +296,17 @@ The `<<` method is an alias to `write`.
 
 #### `stream`
 
+**MUST** raise an exception if `finished?` would have returned `true`.
+
 Sets the response to streaming.
 
 Returns `self` (the `response` object).
 
-**MUST** raise an exception if `finished?` would have returned `true`.
-
-If `write` was previously called, perform all necessary operations as if the call to `write` was performed after the call to `stream` - i.e., update the proper `'transfer-encoding'` header, validate and send the status and header data, etc'.
+If `write` was previously called, **MUST** perform all necessary operations as if the call to `write` was performed after the call to `stream` - i.e., update the proper `'transfer-encoding'` header, validate and send the status and header data, etc'.
 
 #### `streaming?`
 
-**MUST** return `false` unless `stream` was called and neither `finish` nor `cancel` were called.
+**MUST** return `false` unless both `stream` was previously called and `finished?` is `false`.
 
 Otherwise, **MUST** return `true`.
 
@@ -312,7 +316,9 @@ Otherwise, **MUST** return `true`.
 
 The Server **MUST**:
 
-* Call `write` if `data` isn't `nil`. If `stream` was previously called but no data was previously sent (`write` wasn't called previously), the Server **SHOULD** behave as if the `stream` method was never called (i.e., set `'content-length'` rather than stream).
+* Call `write` if `data` isn't `nil`.
+
+   **Note**: if `stream` was previously called but no data was previously sent (`write` wasn't called previously), the Server **SHOULD** behave as if the `stream` method was never called (i.e., set `'content-length'` rather than stream, if possible).
 
 * Unless previously performed, validate and send the status and header data.
 
@@ -340,21 +346,25 @@ If possible, the Server **MUST** send an appropriate error response.
 
 A NeoRack Server **MUST**, at the very least, handle network and HTTP protocol details to the minimal level required to implement the NeoRack `request` and  NeoRack `response` objects and call a NeoRack Application object.
 
-A NeoRack Server **MUST** accept one or more NeoRack Applications and forward a `request` and `response` object to the Application.
+A NeoRack Server **MUST** accept at least one NeoRack Applications and forward a `request` and `response` object to the Application.
 
 If a NeoRack Server accepts more than a single NeoRack Application, the Server **SHOULD** document how it selects the Application object.
+
+Servers **SHOULD** implement the `hijack` extension if possible. It **SHOULD NOT** be used by applications, but it often is.
 
 ### Server methods
 
 A NeoRack Server **MUST** implement the following methods in the Server object returned by a call to `request.server`:
 
-#### `forked?`
+#### `forking?`
 
 **MUST** be set to `true` **ONLY IF** the Server's concurrency model expects to use `fork` (i.e., workers processes or a process-per-connection). If this is not the case, returns `false`.
 
+This allows Extensions and Applications know if some features require IPC (Inter Process Communication).
+
 #### `blocking?`
 
-**MUST** be set to `true` **ONLY IF** the Server's concurrency model allows execution to block without negavive side-effects, i.e., process/thread/fiber-per-connection design patterns.
+**MUST** be set to `true` **ONLY IF** the Server's concurrency model allows execution to block without negative side-effects, i.e., process/thread/fiber-per-connection design patterns.
 
 #### `extensions`
 
@@ -387,17 +397,17 @@ Extensions to this specification **MAY** require additional names to be added as
 
 ## NeoRack Extensions
 
-NeoRack Servers cab be extended either internally, through the Server supporting an extension, or externally, through setting up middleware and/or adding mixins to the published classes and updating the Aerver's `extensions` and `classes`.
+NeoRack Servers **MAY** be extended either internally, through the Server supporting an extension, or externally, through setting up middleware and/or adding mixins to the published classes and updating the Server's `extensions` and `classes`.
 
 Extensions registered in the NeoRack repository will have their specifications published in the `extensions` folder and **MUST** specify a unique name for the Servers `extensions` Hash, specify a [semantic versioning](https://semver.org) compliant 3 numbered version array and be mature.
 
-Developers may also register extension drafts to be placed in the `extensions/drafts` folder and promote community feedback.
+Developers may also ask to register extension drafts to be placed in the `extensions/drafts` folder and request community feedback.
 
 ### External Extensions
 
 External extensions **SHOULD** implement a `register` method that accepts at least one argument - the `self` object of the DSL execution environment.
 
-The following is a made-up logging extension implementation example that should be considered as pseudo code:
+The following is a made-up logging extension implementation example that should be considered as pseudo code (and is actually "middleware" in nature):
 
 ```ruby
 # Place module somewhere
@@ -416,7 +426,7 @@ module MyLoggingExtension
   # Prints log
   def self.on_finish(request)
     delta = Time.now - request[:STARTED_AT]
-    puts "HTTP request %s took %.4f"%(#{request[:path]}, delta)
+    puts "HTTP request %s%s took %.4fs"%(request[:path_root], request[:path], delta)
   end
 end
 
@@ -430,7 +440,7 @@ A NeoRack Server **MUST** document its startup and shutdown procedures.
 
 A NeoRack Server **MAY** offer a Ruby API for setting up and/or running and/or managing the Server from within Ruby.
 
-A NeoRack Server **SHOULD** implement a CLI (Command Line Interface) and **SHOULD** expose as many options through its CLI, minimizing the need for setup files / code. 
+A NeoRack Server **SHOULD** implement a CLI (Command Line Interface) and **SHOULD** expose as many options through its CLI, minimizing the need for server specific setup files / code.
 
 ### Common CLI Arguments
 
@@ -440,7 +450,7 @@ It is **RECOMMENDED** that Servers automatically test for the `ADDRESS` and `POR
 
 It is **RECOMMENDED** that Servers recognize the first unnamed CLI option as a the script name for the NeoRack application.
 
-The following common argument names are **RECOMMENDED** (but to each their own):
+The following common CLI option names are **RECOMMENDED** (but to each their own):
 
 * `-b` - the address to listen to.
 
@@ -464,7 +474,7 @@ The following common argument names are **RECOMMENDED** (but to each their own):
 
 ### NeoRack Application Scripts
 
-NeoRack Servers **SHOULD** support loading NeoRack Applications using a Ruby script (i.e., `'config.ru'`.
+NeoRack Servers **SHOULD** support loading NeoRack Applications using a Ruby script (i.e., `'config.ru'`).
 
 When loading such a script, the following methods **MUST** be made available to the script as if they were global methods (a DSL):
 
@@ -536,6 +546,7 @@ module NeoRack
     def run(application)
       # add middleware to a middleware stack
       @app___ = application
+      self
     end
 
     # DSL method - runs `.call(request, response)` before the application handles the response.
@@ -545,6 +556,7 @@ module NeoRack
       prc ||= block
       raise(ArgumentError, "this method requires an object that responds to `call(request, response)`") unless(prc.respond_to?(:call))
       @stack_pre___ << prc
+      self
     end
 
     # DSL method - runs `.call(request)` after the response ended (when steaming, this is delayed until streaming ends).
@@ -554,12 +566,14 @@ module NeoRack
       prc ||= block
       raise(ArgumentError, "this method requires an object that responds to `call(request, response)`") unless(prc.respond_to?(:call))
       @stack_pre___ << prc
+      self
     end
 
     # DSL method for backwards compatibility 
     def use(middleware, *args, &block)
       # add middleware to a middleware stack
       @stack___ << [middleware, args, block]
+      self
     end
 
     # DSL method for backwards compatibility 
@@ -618,7 +632,7 @@ The following is an example for an external backwards compatibility extension, i
 module NeoRack
   class BackwardsCompatibility
     def self.register(dsl)
-      unless server.extensions[:backwards_compatible] && server.extensions[:backwards_compatible][0] == 1
+      unless dsl.server.extensions[:backwards_compatible] && dsl.server.extensions[:backwards_compatible][0] == 1
         dsl.server.extensions[:backwards_compatible] = [1,3,0].freeze
         dsl.use(self)
       end
@@ -667,9 +681,9 @@ module NeoRack
       request['neorack.response'] = response
       # support hijack if supported
       if(request.server.extensions[:hijack])
-	      request['rack.hijack']     = Proc.new { request['rack.hijack_io'] = response.hijack(false) }
-	      request['rack.hijack?']    = true
-	    end
+        request['rack.hijack']     = Proc.new { request['rack.hijack_io'] = response.hijack(false) }
+        request['rack.hijack?']    = true
+      end
     end
 
     # example implementation 
@@ -684,31 +698,43 @@ module NeoRack
       old[1].each {|name, val| val = val.split("\n"); val.each {|v| response.add_header(name, v)} }
       # handle hijacking or send body
       if(hijacked && request.server.extensions[:hijack])
-      	hijacked.call(response.hijack(true))
-      else case old[2].class
-      when String
-        response << str
-        old[2].close if old[2].respond_to?(:close)
-      when Array
-        old[2].each {|str| response << str }
-        old[2].close if old[2].respond_to?(:close)
+        hijacked.call(response.hijack(true))
       else
-        # start streaming the response
-        response.stream
-        # perform `each` in a new thread / fiber, as it may block the server
-        if(old['neorack.request'][:SERVER].blocking?)
-            old[2].each {|str| response << str }
-            response.finish
+        case old[2].class
+        when String
+          response << str
+          old[2].close if old[2].respond_to?(:close)
+        when Array
+          old[2].each {|str| response << str }
+          old[2].close if old[2].respond_to?(:close)
         else
-          old['neorack.request'][:SERVER].classes[:concurrency].new do
-            old[2].each {|str| response << str }
-            response.finish
+          # start streaming the response
+          response.stream
+          # perform `each` in a new thread / fiber, as it may block the server
+          if(old['neorack.request'][:SERVER].blocking?)
+              old[2].each {|str| response << str }
+              response.finish
+          else
+            old['neorack.request'][:SERVER].classes[:concurrency].new do
+              old[2].each {|str| response << str }
+              response.finish
+            end
           end
         end
       end
     end
   end
 end
+
+module SRV
+def self.extensions
+@h ||= {}
+end
+def self.classes
+@h ||= {}
+end
+end
+NeoRack::BackwardsCompatibility.register(NeoRack::Builder.new(SRV, "/Users/2be/Ruby/plezi/iodine/examples/config.ru"))
 
 # run this code in the DSL
 NeoRack::BackwardsCompatibility.register(self)

@@ -14,13 +14,15 @@ NeoRack Servers that implement this extension **MUST** implement the following m
 
 #### `hijack(send_headers = false)`
 
-**MUST** raise an exception if either `response.streaming?` or `response.finished?` would have returned `true`.
+**SHOULD** raise an exception if `response.streaming?` would have returned `true`.
 
-**MUST** cause `response.finished?` to return `true`.
+**MUST** raise an exception if `response.finished?` would have returned `true`.
+
+**MUST** cause future calls to `response.finished?` to return `true`.
 
 Returns an IO like object that responds to the following methods in the same was a Ruby IO or Socket object would have responded: `fileno`, `read`, `write`, `close`, `read_nonblock`, `write_nonblock`, `flush`, `close_read`, `close_write`, `closed?`.
 
-The `fileno` method is provided to allow implementations to `poll` the IO device and this feature **SHOULD** be supported.
+The `fileno` method is provided to allow implementations to `poll` the IO device and this feature **SHOULD** be supported. However, NeoRack Applications and other Extensions **MUST NOT** use `fileno` for anything else, as this might break some implementations. i.e., when the server supports HTTP/2 tunneling, writing or reading from the `fileno` will break the HTTP/2 protocol.
 
 If `send_headers` is `true`, the Server **MUST** send the status and headers before returning the IO object.
 
