@@ -434,7 +434,7 @@ A NeoRack Server **SHOULD** implement a CLI (Command Line Interface) and **SHOUL
 
 ### Common CLI Arguments
 
-If provided, the CLI **MUST** be able to load a Ruby script as detailed in the **NeoRack Application Scripts** section. The default script name is `config.ru`.
+If provided, the CLI **MUST** be able to load a Ruby script as detailed in the **NeoRack Application Scripts** section. The default script name is `'config.ru'`.
 
 It is **RECOMMENDED** that Servers automatically test for the `ADDRESS` and `PORT` environment variables if those aren't set by the command line.
 
@@ -464,7 +464,7 @@ The following common argument names are **RECOMMENDED** (but to each their own):
 
 ### NeoRack Application Scripts
 
-NeoRack Servers **SHOULD** support loading NeoRack Applications using a Ruby script.
+NeoRack Servers **SHOULD** support loading NeoRack Applications using a Ruby script (i.e., `'config.ru'`.
 
 When loading such a script, the following methods **MUST** be made available to the script as if they were global methods (a DSL):
 
