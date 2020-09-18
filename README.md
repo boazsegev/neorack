@@ -1,5 +1,5 @@
 # NeoRack
-![NeoRack logo](neorack_logo.png)
+[![NeoRack logo](neorack_logo.png)](SPEC.md)
 
 [Rack](https://github.com/rack/rack) is great and I love all it's done for Ruby. In general it's a great time saver.
 
