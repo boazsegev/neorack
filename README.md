@@ -7,7 +7,7 @@ However, Rack's design is showing its age and its CGI model has shortcomings tha
 
 The NeoRack specification is designed to offer a solution for these shortcomings by:
 
-* Making polling, streaming and long requests first class citizens.
+* Making long-polling, streaming and long requests first class citizens.
 
 * Supporting server feature testing during startup (rather than during response execution).
 
