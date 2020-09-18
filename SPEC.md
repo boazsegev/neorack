@@ -518,7 +518,7 @@ module NeoRack
   class Builder
     # initialize a new builder object and run the script in filename
     def initialize(server, filename = 'config.ru')
-      @server___, @app___, @warmup___, @app___= server, , nil, nil, nil
+      @server___, @app___, @warmup___, @app___= server, nil, nil, nil
       @stack_pre___, @stack___, @stack_post___  = [].dup, [].dup, [].dup
       script = ::File.read(filename)
       # remove UTF-8 BOM, see: https://stackoverflow.com/questions/2223882/whats-the-difference-between-utf-8-and-utf-8-without-bom
@@ -572,7 +572,8 @@ module NeoRack
       raise "Application object missing!" unless @app___
       @stack___ << @app___
       app = @stack___.pop
-      while(tmp = @stack___.pop)
+      tmp = nil
+      while((tmp = @stack___.pop))
         if tmp[3]
           app = tmp[0].new(app, *tmp[1], &tmp[2])
         else
@@ -582,7 +583,7 @@ module NeoRack
       @app___ = app
 
       @warmup___.call(@app___) if @warmup___
-      @stack_pre___, @app___, @stack_post___
+      [@stack_pre___, @app___, @stack_post___]
     end
 
     # returns the setup callback stack, the application object and the cleanup callback stack.
