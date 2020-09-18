@@ -726,16 +726,6 @@ module NeoRack
   end
 end
 
-module SRV
-def self.extensions
-@h ||= {}
-end
-def self.classes
-@h ||= {}
-end
-end
-NeoRack::BackwardsCompatibility.register(NeoRack::Builder.new(SRV, "/Users/2be/Ruby/plezi/iodine/examples/config.ru"))
-
 # run this code in the DSL
 NeoRack::BackwardsCompatibility.register(self)
 APP = Proc.new {|env| [200, {}, ["Hello World"]] }
