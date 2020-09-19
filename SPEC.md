@@ -496,6 +496,8 @@ Only on of these objects (`proc_obj` or `block`) will be used. `proc_obj` has pr
 
 The NeoRack Server **MUST** call the object **before** calling the Application.
 
+The NeoRack Server **MUST** call the callbacks in order of insertion.
+
 If `response.finished?` is `true` after the Server called the object, the server **MUST** stop processing the request.
 
 #### `run_after(proc_obj = nil, &block)`
@@ -508,6 +510,8 @@ Only on of these objects (`proc_obj` or `block`) will be used. `proc_obj` has pr
 
 The NeoRack Server **MUST** call the object (or schedule it) when `response.finish` is called.
 
+The NeoRack Server **MUST** call the callbacks in **reverse** order of insertion.
+
 #### `use(middleware, *args, &block)`
 
 Provided for for backwards compatibility with a nested middleware design pattern.
@@ -518,96 +522,9 @@ Provided for for backwards compatibility, takes a block and/or Proc object that 
 
 #### Example Application Script Loader
 
-i.e.:
+An example application script loader is available in the NeoRack `'/gem'` folder, [in the file `'builder.rb'`](./gem/lib/neorack/builder).
 
-```ruby
-module NeoRack
-  # A single application NeoRack application DSL script handler 
-  #
-  # Internal names end with `___` to minimize possible namespace concerns.
-  class Builder
-    # initialize a new builder object and run the script in filename
-    def initialize(server, filename = 'config.ru')
-      @server___, @app___, @warmup___, @app___= server, nil, nil, nil
-      @stack_pre___, @stack___, @stack_post___  = [].dup, [].dup, [].dup
-      script = ::File.read(filename)
-      # remove UTF-8 BOM, see: https://stackoverflow.com/questions/2223882/whats-the-difference-between-utf-8-and-utf-8-without-bom
-      script.slice!(0..2) if script.encoding == Encoding::UTF_8 && script.start_with?('\xef\xbb\xbf')
-      # run script in context of the object, enabling the DLS
-      instance_eval(script)
-    end
-
-    # DSL method - access the Server object and its methods
-    def server
-      @server___
-    end
-
-    # DSL method - set the application to be used by the Script
-    def run(application)
-      # add middleware to a middleware stack
-      @app___ = application
-      self
-    end
-
-    # DSL method - runs `.call(request, response)` before the application handles the response.
-    #
-    # Used pre-request logic, such as authentication, database connection checkout, etc'.
-    def run_before(prc = nil, &block)
-      prc ||= block
-      raise(ArgumentError, "this method requires an object that responds to `call(request, response)`") unless(prc.respond_to?(:call))
-      @stack_pre___ << prc
-      self
-    end
-
-    # DSL method - runs `.call(request)` after the response ended (when steaming, this is delayed until streaming ends).
-    #
-    # Used for cleanup logic, such as removing database connections from the `request` Hash, logging, etc'.
-    def run_after(prc = nil, &block)
-      prc ||= block
-      raise(ArgumentError, "this method requires an object that responds to `call(request, response)`") unless(prc.respond_to?(:call))
-      @stack_pre___ << prc
-      self
-    end
-
-    # DSL method for backwards compatibility 
-    def use(middleware, *args, &block)
-      # add middleware to a middleware stack
-      @stack___ << [middleware, args, block]
-      self
-    end
-
-    # DSL method for backwards compatibility 
-    def warmup(prc = nil, &block)
-      @warmup___ ||= prc || block
-    end
-
-    # Internal use: returns the setup callback stack, the application object and the cleanup callback stack.
-    def build_stack___
-      raise "Application object missing!" unless @app___
-      @stack___ << @app___
-      app = @stack___.pop
-      tmp = nil
-      while((tmp = @stack___.pop))
-        if tmp[3]
-          app = tmp[0].new(app, *tmp[1], &tmp[2])
-        else
-          app = tmp[0].new(app, *tmp[1])
-        end
-      end
-      @app___ = app
-
-      @warmup___.call(@app___) if @warmup___
-      [@stack_pre___, @app___, @stack_post___]
-    end
-
-    # returns the setup callback stack, the application object and the cleanup callback stack.
-    def self.load(server_klass, filename)
-      instance = NeoRack::Builder.new(server_klass, filename)
-      instance.build_stack___
-    end
-  end
-end
-```
+Servers **MAY** roll their own, copy the code or require the `neorack` gem at their discretion.
 
 ## NeoRack Compatibility with Rack
 
