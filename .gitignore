@@ -1,3 +1,4 @@
 # Specify filepatterns you want git to ignore.
 pkg/
 .DS_Store
+Gemfile.lock
