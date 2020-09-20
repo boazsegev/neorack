@@ -1,10 +1,12 @@
-# Hijacking Extension
+# Hijack Extension
 
-This NeoRack extension describes a connection hijacking API that allows for backwards compatibility.
+Th NeoRack Hijack Extension describes a connection hijacking API that allows for backwards compatibility.
+
+Servers that return a value from the `extensions[:hijack]` **MUST** conform to this extensions (or one of its versions).
 
 ## Extension Name
 
-NeoRack Servers that implement this extension **MUST** set `extensions[:hijack]` so it is equal to `[1,0,0].freeze`.
+NeoRack Servers that implement this extension **MUST** set `extensions[:hijack]` so it is equal to `[0,1,0].freeze`.
 
 NeoRack Servers that implement this extension **MUST** set `classes[:hijack]` to the class of the object returned by `response.hijack`.
 

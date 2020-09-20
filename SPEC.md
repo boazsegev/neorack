@@ -10,13 +10,13 @@ Note that NeoRack Applications, Servers and Extensions are **NOT** required to i
 
 ## NeoRack Applications
 
-A NeoRack application is any Ruby object that responds to the method `call` where the `call` method accepts two arguments (`request`, `response`). i.e.,
+A NeoRack application is any Ruby object that responds to the method `call`. The `call` method accepts two arguments (`request`, `response`). i.e.,
 
 ```ruby
 APP = Proc.new {|request, response| response << "Hello World" }
 ```
 
-For backwards compatibility reasons, a NeoRack Application that returns while both `response.streaming?` and `response.finished?` would return `false` **SHOULD NOT** return an `Array` instance object as its final value - otherwise the returned value might be processed.
+For backwards compatibility reasons, a NeoRack Application that returns while both `response.streaming?` and `response.finished?` would return `false` **SHOULD NOT** return an `Array` instance object as its final value - otherwise the returned value might be processed according the [CGI Rack specifications](https://github.com/rack/rack/blob/master/SPEC.rdoc).
 
 If both `response.streaming?` and `response.finished?` return `false` after the Application returns, the Server **MUST** call `response.finish`.
 
@@ -25,14 +25,14 @@ i.e., in pseudo code:
 ```ruby
 r = APP.call(request, response)
 unless response.streaming? || response.finished?
-  process_backwards_compatible_response(r) if r.is_a?(Array)
+  process_backwards_compatible_response(r) if r.is_a?(Array) && r.length == 3
   response.finish
 end
 ```
 
 ## The NeoRack Request Object
 
-The NeoRack Request Object (`request`) **SHOULD** be an instance of a class that inherits from `Hash` (but is **NOT** an instance of `Hash`) and **MUST** implement the following "Hash-like" methods: `[]`, `[]=`, `each`, `size`, `has_key?` and `merge!` in the same way they are implemented by `Hash`.
+The NeoRack Request Object (`request`) **SHOULD** be an instance of a class that inherits from `Hash` (but is **NOT** an instance of `Hash`) and **MUST** implement (or inherit) the following "Hash-like" methods: `[]`, `[]=`, `each`, `size`, `has_key?` and `merge!` in the same way they are implemented by `Hash`.
 
 The `request` object **MAY** be used by Applications and/or Extensions to store and/or communicate additional data relevant to the request.
 
@@ -46,13 +46,13 @@ The `request` object **MUST** respond to the following methods:
 
 Returns the Server class / object that called the Application object.
 
+#### `spec`
+
+The version for this specification as a three member Array of Numbers, currently `[0,0,1]`.
+
 ### Request key-value pairs
 
 The Server **MUST** set following key-value pairs in the NeoRack Request object. All keys are Symbols (not Strings).
-
-#### `:VERSION_SPEC`
-
-The version for this specification as a three member Array of Numbers, currently `[0,0,1]`.
 
 #### `:VERSION`
 
@@ -177,6 +177,8 @@ The NeoRack Response Object **MUST** respond to the following methods:
 #### `status`
 
 Returns the response status.
+
+The default value **MUST** be set to 200.
 
 #### `status=`
 
@@ -324,23 +326,25 @@ The Server **MUST**:
 
 * Unless `request[:method] == 'HEAD'`, send any pending data in the response payload / body (or schedule to do so) using the proper encoding scheme.
 
+* Set `finished?` to return `true`.
+
 * Call (or schedule) all the `run_after` callbacks.
 
 #### `finished?`
 
-**MUST** return `false` **unless** either `finish` or `cancel` were called.
+**MUST** return `false` **unless** `finish` was called.
 
 Otherwise, **MUST** return `true`.
 
 #### `cancel(error_code)`
 
-Cancels the response object, returning the response management to the Server.
+**MUST** raise an exception if `finished?` would have returned `true` or `write` was previously called (streaming).
 
-If possible, the Server **MUST** send an appropriate error response.
+If `error_code` is not a Number or is an [invalid HTTP error status (`< 400 || >= 600`)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status), **MUST** set `error_code` to the Number [500 (Internal Server Error)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500).
 
-**SHOULD** raise an exception if `error_code` is less than 400 or grater than 599 (`< 400 || >= 600`).
+Sets `status` to `error_code` and calls `finish(error_data)` where `error_data` **MUST** be a data object selected by the server in a best effort to match the error code sent in the `status`.
 
-**MUST** raise an exception if either `streaming?` or `finished?` would have returned `true`.
+After finishing the response, the Server **SHOULD** raise an exception if `error_code` had to be set by the Server.
 
 ## NeoRack Servers
 
@@ -424,9 +428,10 @@ module MyLoggingExtension
     request[:STARTED_AT] = Time.now
   end
   # Prints log
-  def self.on_finish(request)
+  def self.on_finish(request, response)
     delta = Time.now - request[:STARTED_AT]
-    puts "HTTP request %s%s took %.4fs"%(request[:path_root], request[:path], delta)
+    # this isn't an official logging format, don't use this.
+    puts "-- HTTP %s \"%s%s\" - %s - %.4fs"%(request[:method], request[:path_root], request[:path], response.status, delta)
   end
 end
 
@@ -504,11 +509,11 @@ If `response.finished?` is `true` after the Server called the object, the server
 
 This may be used for cleanup logic, such as removing database connections from the `request` Hash, logging, etc'.
 
-Either the `proc_obj` or `block` **MUST** respond to `call(request)`.
+Either the `proc_obj` or `block` **MUST** respond to `call(request, response)`.
 
 Only on of these objects (`proc_obj` or `block`) will be used. `proc_obj` has precedence.
 
-The NeoRack Server **MUST** call the object (or schedule it) when `response.finish` is called.
+The NeoRack Server **MUST** call the object immediately after `response.finished?` is set to return `true`. The object **MUST** be called in the same thread (or fiber) as the application
 
 The NeoRack Server **MUST** call the callbacks in **reverse** order of insertion.
 
@@ -530,121 +535,4 @@ Servers **MAY** roll their own, copy the code or require the `neorack` gem at th
 
 NeoRack backwards compatibility with [the CGI style Rack specifications](https://github.com/rack/rack/blob/master/SPEC.rdoc) is considered an Extension and uses the reserved extension name `:backwards_compatible`.
 
-Backwards compatibility extensions **MUST**:
-
-* Set all `env` values as set in the [CGI style Rack applications](https://github.com/rack/rack/blob/master/SPEC.rdoc).
-
-* Set the Server's `extensions[:backwards_compatible]` values to the Rack protocol version they support (i.e., `[1,3,0].freeze`).
-
-* Set `env['neorack.request']` to the `request` object.
-
-* Set `env['neorack.response']` to the `response` object.
-
-Backwards compatibility extensions **SHOULD** use the `request` object for implementing the Rack style `env`.
-
-The following is an example for an external backwards compatibility extension, it is untested, might not work and should be considered pseudo code:
-
-```ruby
-# place this extension code somewhere
-module NeoRack
-  class BackwardsCompatibility
-    def self.register(dsl)
-      unless dsl.server.extensions[:backwards_compatible] && dsl.server.extensions[:backwards_compatible][0] == 1
-        dsl.server.extensions[:backwards_compatible] = [1,3,0].freeze
-        dsl.use(self)
-      end
-    end
-    def initialize(app)
-      @app = app
-    end
-
-    def call(request, response)
-      add_old_env_values_to_request(request, response)
-      old = @app.call(request)
-      process_old_return_value(old, response)
-    end
-
-    # example implementation
-    def self.add_old_env_values_to_request(request, response)
-      new_headers = {}
-      request.each do |k,v|
-        if (k.is_a?(String) && k[0].ord >= 'a'.ord && k[0].ord <= 'a'.ord)
-          if k == 'content-length' || k == 'content-type'
-            new_headers[k.swapcase.gsub!('-', '_')] ||= v
-          else
-            new_headers["#{HTTP_}#{k.swapcase.gsub('-', '_')}"] ||= v
-          end
-        end
-      end
-      request.merge! new_headers
-      # set whatever Rack requires... i.e.:
-      request['REQUEST_METHOD']   = request[:method]
-      request['rack.url_scheme']  = request[:scheme]
-      request['SERVER_NAME']      = request['host']
-      request['SCRIPT_NAME']      = request[:path_root]
-      request['PATH_INFO']        = request[:path]
-      request['QUERY_STRING']     = request[:query]
-      request['rack.version']     = [1,3,0]
-      request['rack.errors']      = STDERR
-      if request[:body]
-        request['rack.input']       = request[:body]
-        request['CONTENT_LENGTH']   = request[:body].length.to_s
-        request['CONTENT_TYPE']   = request[:body].type if request[:body].type
-      else
-        request['rack.input']     = StringIO.new
-      end
-      # allow NeoRack aware apps access to these objects
-      request['neorack.request']  = request
-      request['neorack.response'] = response
-      # support hijack if supported
-      if(request.server.extensions[:hijack])
-        request['rack.hijack']     = Proc.new { request['rack.hijack_io'] = response.hijack(false) }
-        request['rack.hijack?']    = true
-      end
-    end
-
-    # example implementation 
-    def self.process_old_return_value(old, response)
-      # do nothing if it was already done.
-      return nil if(response.finished? || response.streaming?)
-      raise "unexpected return value from application" unless (old.is_a?(Array) && old.length == 3)
-      # set status
-      response.status = old[0].to_i
-      # copy headers to new response object
-      hijacked = old[2].delete('rack.hijack')
-      old[1].each {|name, val| val = val.split("\n"); val.each {|v| response.add_header(name, v)} }
-      # handle hijacking or send body
-      if(hijacked && request.server.extensions[:hijack])
-        hijacked.call(response.hijack(true))
-      else
-        case old[2].class
-        when String
-          response << str
-          old[2].close if old[2].respond_to?(:close)
-        when Array
-          old[2].each {|str| response << str }
-          old[2].close if old[2].respond_to?(:close)
-        else
-          # start streaming the response
-          response.stream
-          # perform `each` in a new thread / fiber, as it may block the server
-          if(old['neorack.request'][:SERVER].blocking?)
-              old[2].each {|str| response << str }
-              response.finish
-          else
-            old['neorack.request'][:SERVER].classes[:concurrency].new do
-              old[2].each {|str| response << str }
-              response.finish
-            end
-          end
-        end
-      end
-    end
-  end
-end
-
-# run this code in the DSL
-NeoRack::BackwardsCompatibility.register(self)
-APP = Proc.new {|env| [200, {}, ["Hello World"]] }
-run APP
-```
+See [`extensions/backwards compatibility.md`](extensions/backwards%20compatibility.md) for details.
