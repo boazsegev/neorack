@@ -8,7 +8,9 @@ The NeoRack specification is a balancing act between a number of conflicting nee
 
 3. The need to support real-time applications (i.e., long polling and connection upgrades).
 
-4. The need to make servers authorship flexible while allowing for more efficiency (less memory use, less string conversions, etc').
+4. The need to promote separation of concerns between application logic and network/protocol logic.
+
+5. The need to make servers authorship flexible while allowing for more efficiency (less memory use, less string conversions, etc').
 
 ## Why a separate response object?
 
@@ -41,3 +43,9 @@ However, this approach requires more String objects and CPU processing time.
 For applications that do not require backwards compatibility, it makes no sense to copy the HTTP header names to a new String when they can simply use the same String (and down-case it in place).
 
 The use of lower case header names also matches the HTTP/2 protocol behavior and provides opportunities for servers to optimize memory usage where header name objects are concerned.
+
+## What about protocol details
+
+Protocol details, such as `keep-alive`, `content-length` etc' **should** be handles by the server, not the application.
+
+Incoming protocol details may still be accessible, if not removed by the server, but they should be ignored by the application.

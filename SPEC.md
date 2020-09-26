@@ -210,6 +210,12 @@ If `value` is set, calls `add_header(name, value)`
 
 **MUST** raise an exception if either `streaming?` or `finished?` would have returned `true`.
 
+#### `get_header(name)`
+
+Returns the value of the header as either a String or an Array of Strings.
+
+Applications **MUST NOT** mutate this value or any of the strings in any form. This should be considered a **read-only** method.
+
 #### `set_cookie(name, value, options={})`
 
 If `name` is `nil`, does nothing (returns, no exception is raised).
@@ -251,6 +257,12 @@ The `option` hash **MUST** recognize the following Symbols for setting cookies (
     If only `:expires` is set, the Server **MAY** convert `:expires` to `:max_age` values.
 
 **Note**: if both `:max_age` and `:expires` are missing, the cookie will be considered a session cookie by the client.
+
+#### `get_cookie(name)`
+
+Returns the value of the cookie (without any of the options) as a String.
+
+Applications **MUST NOT** mutate this value in any form. This should be considered a **read-only** method.
 
 #### `write(data, offset = 0, length = nil)`
 
