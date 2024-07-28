@@ -1,51 +1,65 @@
-# NeoRack Specification
+# NeoRack Specification Rational
 
-The NeoRack specification is a balancing act between a number of conflicting needs:
+This is my understanding so far. I tried sticking to all the good things the current Rack specification offers, while supporting possible async / streaming / evented implementations.
 
-1. The need to maintain backwards compatibility.
+I would not only love your input, but I would appreciate it if you posted totally different ideas / rational.
 
-2. The need for a clear API that helps developers intuit how to leverage NeoRack using idiomatic Ruby.
+Here's some of the things I am trying to accomplish:
 
-3. The need to support real-time applications (i.e., long polling and connection upgrades).
+### Making the Design Modular (allowing for extensions)
 
-4. The need to promote separation of concerns between application logic and network/protocol logic.
+This design doesn't include optional features such as `rack.hijack`. All optional features (IMHO) should be specified in extensions rather than the main specification.
 
-5. The need to make servers authorship flexible while allowing for more efficiency (less memory use, less string conversions, etc').
+I also tried to make it possible to detect Server supported extensions during start up, so it's possible to import external extensions (i.e., a possible future `neorack_websocket` or `neorack_cookie` gem) for missing extensions.
 
-## Why a separate response object?
+### Avoiding Unnecessary Object Allocations
 
-The most backwards compatible approach would have been to have the `request` object called `env` and require that it respond to `.response`.
+By using a single `event` object, we avoid unnecessary object allocations where possible. By not restricting the `event` object implementation to a specific data structure, we allow different implementations to attempt more efficient approaches to the HTTP event data storage – including implementations that directly write to the HTTP transport.
 
-This would allow Rack and NeoRack applications to look almost the same `Proc.new {|env|...}`.
+### Abstracting away the Network Layer
 
-However, this would also make `response` available for persistent connections long after the response was sent, which may result in subtle bugs.
+I think that Servers shouldn't expose the network layer, at all.
 
-In addition, NeoRack opted for **explicit backwards compatibility** rather than an **implicit** one.
+If application developers need raw TCP/IP access, then either the specification is faulty (and should be fixed) or the application is a remote edge case that should be implemented by a development team that can roll their own servers.
 
-This means that applications should be aware that they are using a backwards compatibility layer and CGI style Rack code.
+### Abstracting away the HTTP Layer
 
-## Why not use Hash directly for the request object?
+Although I believe it's impossible to abstract away all the HTTP protocol details, I do believe that we should move as many of the HTTP concerns as possible to the server.
 
-The `request` object should inherit from Hash, but isn't directly a Hash.
+The rest, hopefully, would be abstracted away by frameworks or community gems that will implement HTTP details (such as cookie setting, MIME part parsing, etc').
 
-This allows Ruby mix-ins to be utilized for NeoRack extensions (i.e., `request.class.include ...`).
+### Let CGI play nice with Async
 
-By requiring the `request.server` method, servers are already required to add their own method, making it impractical for them to use the Hash class directly.
+I don't believe that any one concurrency model should be enforced by the specification.
 
-## Why not adopt Rack's header naming?
+The specification should be implementable in any concurrency model, including linear code or async implementations.
 
-The CGI Rack specification used HTTP variables with the `HTTP_` prefix for some (but not all) variables and with the `-` replaced with `_`.
+This means that CGI (linear code) must not be a requirement. Web applications should be able to "save" the request somewhere and respond later (i.e., when long polling).
 
-This is a historical CGI requirement related to the fact that the variables were stored in the processes Unix `env` object before the process was forked and had naming restrictions that allowed these objects to be accessed from any script / language (i.e., `bash` scripts, etc').
+To free developers to choose their own concurrency model, it requires the server to support a finalization method (i.e. `finish`) and possibly a cleanup callback / hook (i.e., `on_finish`).
 
-However, this approach requires more String objects and CPU processing time.
+### MiddleWare Evolves
 
-For applications that do not require backwards compatibility, it makes no sense to copy the HTTP header names to a new String when they can simply use the same String (and down-case it in place).
+I don't believe MiddleWare can continue to exist in the same way it existed so far.
 
-The use of lower case header names also matches the HTTP/2 protocol behavior and provides opportunities for servers to optimize memory usage where header name objects are concerned.
+The moment we introduce Async / Streaming we allow the app direct access to the output stream, bypassing the MiddleWare's control over the output (unless, of-course, the MiddleWare somehow was allowed to replaces the whole `event` object).
 
-## What about protocol details
+This prevents the MiddleWare from being able to completely modify the output stream, as the MiddleWare is limited to:
 
-Protocol details, such as `keep-alive`, `content-length` etc' **should** be handles by the server, not the application.
+* Validating / updating the event object (pre-App operations), including input parsing, authentication, etc'.
 
-Incoming protocol details may still be accessible, if not removed by the server, but they should be ignored by the application.
+* Assigning resources to the event object (pre-App and post-App operations), including database connection assignments, etc'.
+
+* Replacing the App by answering the the event (pre-App operations).
+
+### Goodbye Logging - All Hail Logging
+
+Logging is important. However, IMHO, it's counterproductive to encourage developers to unify the server and application logging outputs.
+
+In fact, by separating the logging concerns, we are both promoting separation of concerns and (possibly) hinting to developers that server level events could be logged to a different medium than application level events.
+
+### Minimal String Conversions
+
+I understand history has us adding `HTTP_` to the header names and capitalizing the letters and converting `-` into `_`... but honestly, things would be faster if we used the HTTP headers as is (except, maybe, when making sure they were all lower-case to match HTTP/2 and promote unity).
+
+The main worry here is that adding those extra 5 bytes may require re-allocating the whole String (not only copying the data at a 5 byte offset). This is a waste of resources and should be avoided.

@@ -1,58 +1,39 @@
-# NeoRack
-[![NeoRack logo](resources/neorack_logo.png)](SPEC.md)
+# NeoRack - Taking Ruby's Rack into the Future
 
-[Rack](https://github.com/rack/rack) is great and I love all it's done for Ruby. It made us all stronger, gave us a unified platform and saved us countless developer hours and time.
+NeoRack, like Rack, provides [a specification](./SPEC.md) detailing how Ruby Servers and Web Applications interact.
 
-However, Rack's design is showing its age... its CGI model has shortcomings that we can all sort of mitigate and code around, but cost us developer hours and often leave us with degraded performance.
+Where Rack is based on the historical CGI specification, NeoRack looks to the future and aims to provide solutions for modern Web Applications.
 
-The NeoRack specification is designed to offer a solution for these shortcomings by:
+## Evented, Blocking or Async?
 
-* Making long-polling, streaming and long requests first class citizens.
+The choice is yours.
 
-* Supporting server feature testing during startup and application buildup (in addition to during response execution).
+[The NeoRack specification](./SPEC.md) is designed to force the underlying architecture into allowing you to choose the best approach for your needs.
 
-* Supporting server extensions that can be implemented by either the server or external gems.
+## Backwards compatibility?
 
-* Supporting (optional) backwards compatibility with Rack.
+> "[All for the sake of momentum,](https://youtu.be/2F-0pKS3xgk?t=105)
+> 
+>  [I'm condemning the future to death,](https://youtu.be/2F-0pKS3xgk?t=105)
+>  
+>  [so it can match the past.](https://youtu.be/2F-0pKS3xgk?t=105)"
+>  
+>  - Aimee Mann
 
-My hope is that one day NeoRack and Rack could be merged in a way that makes developers happy and advanced web applications easy to author.
+NeoRack applications are designed in a way that allows NeoRack to "host" or contain one or more Rack applications - this way, backwards compatibility can be achieved.
 
-Please read the [NeoRack specifications](SPEC.md) for details.
+However, the Rack specification simply has too many limitations and it's making it hard for Ruby Web Applications to enjoy modern approaches and features.
 
----
+Much has been written about this, [issues were already glaring at us more than 12 years ago](http://blog.plataformatec.com.br/2012/06/why-your-web-framework-should-not-adopt-rack-api/)... but backwards compatibility is alluring and momentum has its way.
 
-# The NeoRack Gem
+Maybe the existing Rack design will prove to be better and NeoRack will fade away, much like [Rack-Next](https://github.com/Wardrop/Rack-Next), [The Metal](https://github.com/tenderlove/the_metal), and others. Maybe NeoRack will prove better, but still momentum will win.
 
-Currently the gem is mostly a placeholder for a gem that will slowly fill up with common helpers.
+But if we don't allow ourselves a clean slate and a fresh start - how would we ever know?
 
-## Installation
+> [It's the question that drives us, Neo.](https://youtu.be/jXeF1rMkpQw?t=80)
+> 
+>  - The Matrix
 
-Add this line to your application's Gemfile:
+What if we took more than a decade of experience and wrote a specification designed for modern Web Applications?
 
-```ruby
-gem 'neorack'
-```
-
-And then execute:
-
-    $ bundle install
-
-Or install it yourself as:
-
-    $ gem install neorack
-
-## Usage
-
-The only available module at the moment is the `NeoRack::Builder` that loads script files, offering them the DSL listed in the [NeoRack specifications](SPEC.md#neorack-application-scripts).
-
-## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https://github.com/boazsegev/neorack. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [code of conduct](https://github.com/boazsegev/neorack/blob/master/CODE_OF_CONDUCT.md).
-
-## License
-
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
-
-## Code of Conduct
-
-Everyone interacting in the NeoRack project's codebases, issue trackers, chat rooms and mailing lists is expected to follow the [code of conduct](https://github.com/boazsegev/neorack/blob/master/CODE_OF_CONDUCT.md).
+Yes, new code wouldn't be able to use old code without accepting old limitations, or without porting it to the new specification - but what about new code? what would we be able to accomplish with if we implemented all the lessons we learned in the past?
