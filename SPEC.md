@@ -292,7 +292,7 @@ An `event` instance object **MAY** inherit from any class (Hash may be most appr
 
 * `valid?` - returns `true` if data may still be sent (the connection is open and `finish` hadn't been called yet). Otherwise returns `false`.
 
-* `peer_addr` - **MUST** return the peers address as a String. If the address is unknown, it **MUST** return `nil`. Servers **MAY** always return `nil`.
+* `peer_addr` - **SHOULD** return the peers network address as a String. If the address is unknown, this method **MUST** return `nil`. Servers **MAY** always return `nil`.
 
 * `dup` - (optional) **SHOULD** throw an exception, as the `event` object **MUST NOT** be duplicated by the NeoRack Application.
  
