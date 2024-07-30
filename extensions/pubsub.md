@@ -16,7 +16,7 @@ Server.extensions[:pubsub] = [0,0,1]
 
 A NeoRack Server that supports this extension **MUST** responds to the following methods:
 
-* `Server.subscribe(named_channel, &block)` - subscribes to a named channel.
+* `Server.subscribe(named_channel, opt = {}, &block)` - subscribes to a named channel.
 
     Named channels **MAY** be binary and **MAY** include the `NUL` character.
 
@@ -24,22 +24,27 @@ A NeoRack Server that supports this extension **MUST** responds to the following
 
     Instead of `block`, implementations **MAY** accept a second handler object that responds to a `call` method that accepts the message as the only argument.
 
+    The `opt` Hash **MAY** include implementation-specific options.
 
-* `Server.publish(named_channel, message)` - publishes `message` to the named channel. Messages **MAY** be binary and **MAY** include the `NUL` character.
+* `Server.publish(named_channel, message, opt = {})` - publishes `message` to the named channel. Messages **MAY** be binary and **MAY** include the `NUL` character.
 
     `Server.publish` **MUST** publish the message to all subscribers.
+
+    **Note**: if the Server has more than a single worker process, the message **MUST** be published to all subscribers on all worker processes.
+
+    The `opt` Hash **MAY** include implementation-specific options.
 
 ## NeoRack Event Instance
 
 A NeoRack Server `event` instance object (herein `e`) that supports this extension **MUST** responds to the following methods:
 
-* `e.subscribe(named_channel, &block = nil)` - subscribes to a named channel. See `Server.subscribe` for details.
+* `e.subscribe(named_channel, opt = {}, &block = nil)` - subscribes to a named channel. See `Server.subscribe` for details.
 
     `block` is optional. Servers **MUST** provide a default implementation that sends the published message payload as if `e.write` was called with `msg.to_s`.
 
     The default implementation **SHOULD** send the channel name **ONLY IF** the connection allows this data to be sent as metadata (i.e., SSE events with UTF-8 valid channel names and payloads).
 
-* `e.publish(named_channel, message)` - publishes `message` to the named channel. See `Server.subscribe` for publish.
+* `e.publish(named_channel, message, opt = {})` - publishes `message` to the named channel. See `Server.subscribe` for publish.
 
     `e.publish` **SHOULD** publish the message to all subscribers **EXCEPT** the one that published the message.
 
@@ -57,3 +62,4 @@ The pub/sub message object **MUST** respond to the following methods:
 
 * `to_s` - (alias to `message`) eturns the event's `message` property (the payload).
 
+The pub/sub message object **MAY** respond to additional, implementation defined, methods.
