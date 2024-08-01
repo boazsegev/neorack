@@ -11,3 +11,9 @@ Implementations **MUST**:
 * Implement the `on_http` method so it calls the Application's `call(env)` when a request is received.
 
 * Handle the Rack response according to the Rack specifications and send it using the NeoRack event object as described in the NeoRack specification.
+
+## NeoRack Event Instance
+
+A NeoRack Server `event` instance object (herein `e`) that supports this extension **MAY** respond to the following method:
+
+* `rack_hijack` - hijacks the connection and returns an IO (or IO-like) object that matches the Rack hijack extension requirements.
