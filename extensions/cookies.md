@@ -28,7 +28,7 @@ A NeoRack Server `event` instance object (herein `e`) that supports this extensi
 
     If `:max_age` is 0 (default), cookie will be session cookie and will be deleted by the browser at its discretion.
     
-    This should behave similar to calling `write_header`, except that the cookie can be read using the `e.cookie` method.
+    This should behave similar to calling `write_header`, except that the cookie **MUST** be accessible when using the `e.cookie` method.
 
     This method **SHOULD** accept named arguments, if possible. i.e.:
 
@@ -38,4 +38,4 @@ A NeoRack Server `event` instance object (herein `e`) that supports this extensi
     
     For more details, see: [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
 
-* `e.each_cookie(&block)` - calls `block` for each name-value cookie pair, including ones set by calls to `e.set_cookie` that returned `true`.
+* `e.each_cookie(&block)` - calls `block` for each name-value cookie pair received, as well as ones set by a call to `e.set_cookie` that returned `true`.

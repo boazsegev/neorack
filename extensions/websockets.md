@@ -34,6 +34,8 @@ IF `on_authenticate_websocket` is missing, Servers **MUST** provide a default im
 
 The following methods MUST be implemented by the `event` instance object:
 
+* `e.websocket?` - returns `true` if the connection is a WebSocket connection.
+
 * `e.open?` - returns `true` if the connection appears to be open and `close` hadn't been called (no known issues).
 
 * `e.close` - schedules the connection to be closed once all calls to `e.write` had finished.
