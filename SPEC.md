@@ -1,22 +1,23 @@
-# NeoRack - a new Server-Application Bridge Protocol
+# NeoRack - A New Server-Application Bridge Protocol
 
-Protocol Specification version: 0.0.2 (`[0, 0, 2]`).
+**Protocol Specification Version:** `0.0.2` (`[0, 0, 2]`)
 
-The following specification lists the requirements for a New-Rack compatible **Servers**, **Applications** and **MiddleWare**.
+This specification lists the requirements for NeoRack-compatible **Servers**, **Applications**, and **Middleware**.
 
 ## NeoRack Applications
 
-A NeoRack application is a Ruby Object, singleton Class or Module.
+A NeoRack application is a Ruby object, singleton class, or module.
 
-A NeoRack application **MUST** responds to the `on_http` method. The `on_http` method **MUST** take exactly one argument, which is the `event` argument (herein: `e`), as defined in this specification.
+A NeoRack application **MUST** respond to the `on_http` method. The `on_http` method **MUST** take exactly one argument, `event` (herein: `e`), as defined in this specification.
 
-A NeoRack application **MUST** call `e.finish` for every event (`e`) forwarded to it's method `on_http`. A NeoRack application **MAY** call `e.finish` even after `on_http` had returned.
+A NeoRack application **MUST** call `e.finish` for every event (`e`) forwarded to its `on_http` method. A NeoRack application **MAY** call `e.finish` even after `on_http` has returned.
 
-* `#on_http(e)` - (required) called for every HTTP request with a new (different) `e` instance object.
+- `#on_http(e)` - **(required)**: Called for every HTTP request with a new (unique) `e` instance.
 
-* `#on_finish(e)` - (optional) called for every HTTP request with after the response had finished and before the `e` object is allowed to be Garbage Collected (before the Server releases all references to `e`).
+- `#on_finish(e)` - **(optional)**: If provided, NeoRack servers **MUST** call this method for cleanup before the `e` object is garbage collected (i.e., before the server releases all references to `e`). For HTTP connections, this would typically be immediately after the response is sent.
 
-**Note**: ideally NeoRack application **SHOULD** be thread safe and assume that the method `on_http` might be called concurrently from different threads or processes. Applications **SHOULD NOT** use mutable instance variables and **SHOULD** limit any mutable state storage to the event (`e`) object and/or a separate, thread safe, module.
+**Note:** NeoRack applications **SHOULD** be thread-safe and assume that the `on_http` method might be called concurrently from different threads or processes. To improve thread safety, NeoRack applications **SHOULD NOT** use global mutable variables or application instance variables and **SHOULD** limit any mutable state storage to the key-value store in the event object (`e`) and/or a separate, thread-safe module.
+
 
 ### Example NeoRack Application
 
@@ -24,45 +25,44 @@ A NeoRack application **MUST** call `e.finish` for every event (`e`) forwarded t
 # The default response for the sample NeoRack application
 DEFAULT_RESPONSE = "Hello, World!".freeze
 
-# A NeoRack application, including all possible Application callbacks.
+# A NeoRack application, including all possible core callbacks.
 module EXAMPLE_APP
-    # Called for every HTTP request
-    def self.on_http(e)
-        e.finish(DEFAULT_RESPONSE)
-    end
-    # Called for every HTTP request after it had been completed
-    def self.on_finish(e)
-        puts "#{Process.pid}: I don't handle any more HTTP requests."
-    end
+  # Called for every HTTP request
+  def self.on_http(e)
+    e.finish(DEFAULT_RESPONSE)
+  end
+
+  # Called after `on_http` (or after `on_closed` if WebSocket/SSE extensions are supported)
+  def self.on_finish(e)
+    # Clean up any data stored in the `e` object
+  end
 end
 
 Server.listen nil, EXAMPLE_APP
+Server.start
 ```
 
 ### Example `config.nru`
 
-Similarly to the classical Rack approach, NeoRack Servers **SHOULD** support `.ru` and `.nru` Web Application Configuration Files.
+Similar to Rack, NeoRack servers **SHOULD** support `.ru` and `.nru` configuration files. These files use a similar DSL approach to Rack, with a focus on compatibility where feasible.
 
-Such files use a similar DLS approach as employed by Rack, aiming for compatibility where possible.
+The required NeoRack DSL is limited to the `use` and `run` methods, where `use` adds middleware and `run` sets the application and starts the server.
 
-NeoRack DSL is limited to the `use` and `run` methods, where `use` is used to add MiddleWare and `run` is used to set the application and start the Server.
-
-This would allow Servers to support both NeoRack and Rack applications simultaneously.
+This design allows servers to support both NeoRack and Rack applications simultaneously.
 
 ```ruby
-# The default response for the sample NeoRack application
+# A default response for the sample NeoRack application
 DEFAULT_RESPONSE = "Hello, World!".freeze
 
-# A NeoRack application, including all possible Application callbacks.
+# A NeoRack application, including all possible core callbacks.
 module EXAMPLE_APP
-    # Called for every HTTP request
-    def self.on_http(e)
-        e.finish(DEFAULT_RESPONSE)
-    end
-    # Called for every HTTP request after it had been completed
-    def self.on_finish(e)
-        puts "#{Process.pid}: I don't handle any more HTTP requests."
-    end
+  def self.on_http(e)
+    e.finish(DEFAULT_RESPONSE)
+  end
+
+  def self.on_finish(e)
+    puts "#{Process.pid}: finished processing the HTTP request."
+  end
 end
 
 run EXAMPLE_APP
@@ -72,75 +72,89 @@ run EXAMPLE_APP
 
 NeoRack servers **MUST** support this specification and **MAY** support any extensions they see fit.
 
-NewRack servers **MUST** support at least one NeoRack application and **MAY** support multiple applications at a time (i.e., when listening to multiple sockets or when implementing a routing layer).
+NeoRack servers **MUST** support at least one NeoRack application per server instance and **MAY** support multiple applications concurrently (e.g., by listening to multiple sockets or implementing a routing layer).
 
 ## The `Server` Object
 
-NeoRack Servers **MUST** map the `Server` constant to the module / class in which they implement the required NeoRack API. If the `Server` constant was already defined (i.e., if another NeoRack server loaded), the Server MAY choose to overwrite the constant.
+NeoRack servers **MUST** map the `Server` constant to the module or class implementing the required NeoRack API. If the `Server` constant is already defined (e.g., due to another NeoRack server being loaded), the server **MAY** choose to overwrite the constant.
 
-The `Server` object is designed to provide:
+The `Server` object provides:
 
 1. Information about the server.
-1. Access to the Server API.
-1. A link between NeoRack applications and the NeoRack Server.
+2. Access to the server's API.
+3. A link between NeoRack applications and the NeoRack server.
 
 A `Server` object **MUST** respond to the following methods:
 
-* `extensions` - Returns a Hash map of supported extensions (as key-value pairs).
+- `extensions`: Returns a hash of supported extensions (key-value pairs).
 
-    * The key **MUST** be a Symbol containing the extension name.
+  - The key **MUST** be a symbol containing the extension name.
 
-    * The value **MUST** be an Array indicating the extensions version using [semantic versioning](https://semver.org).
+  - The value **MUST** be an array indicating the extension's version ([semantic versioning](https://semver.org)).
 
-    * The `Server` object **MUST** include the `:neo_rack` key, indicating the version of the NeoRack specification it supports.
+  - The `Server` object **MUST** include the `:neo_rack` key, indicating the version of the NeoRack specification it supports.
 
-* `listen(url, handler)` - Sets the servers to listen on the given `url` and use the given `handler` to process incoming requests.
+- `listen(url, handler)`: Configures the server to listen on the given `url` and use the specified `handler` to process incoming requests.
 
-    * `url` **MUST** be a String containing and address to listen on in URL format (i.e., `"https://localhost:3000"` or `"unix://./my_unix.sock"`). A NeoRack Server **MAY** allow `url` to be `nil`, in which case the Server **SHOULD** decide on the address to listen at.
+  - `url` **MUST** be a string in URL format (e.g., `"https://localhost:3000"` or `"unix://./my_unix.sock"`). If `url` is `nil`, the server **SHOULD** choose a reasonable default behavior.
 
-        Servers **MAY** process the `url` in any way they desire and **MAY** ignore the `path` part of the `URL`. i.e., Some Servers may provide routing support, while others may ignore the `path` part of the URL.
+    Servers **MAY** process the `url` as they see fit, possibly ignoring the `path` part of the URL.
 
-    * `handler` **MUST** be a valid NeoRack application.
+    For example, some servers may provide routing support, while others may ignore the path or offer TLS support by parsing the scheme or query data in the `url`.
 
-    * Servers **MAY** support multiple `listen` calls, allowing them to listen on multiple addresses or URLs.
+  - `handler` **MUST** be a valid NeoRack application.
 
-* `start` - Starts the Server (blocks until the Server stops).
+  - Servers **MAY** support multiple `listen` calls, allowing them to listen on multiple addresses or URLs.
 
-* `stop` - Signals the current Server `worker` to stop. If called from the `root` / `master` process, it **MUST** signal all `worker` processes to stop as well.
+- `start`: Starts the server (blocks until the server stops).
 
-* `threads` - **MUST** return the number of threads that the server will use for calling `on_http` concurrently (or `0` if the Server only uses a single thread for both the `on_http` callback and the IO).
+- `stop`: Signals the current server worker to stop. If called from the master/root process, it **MUST** signal all worker processes to stop.
 
-* `workers` - **MUST** return the number of "worker" processes that the server will spawn (or `0` if the server will run in a non-forking mode).
+- `threads`: Returns the number of threads the server uses for calling `on_http` concurrently (or `0` if the server only uses a single thread for both `on_http` and I/O).
 
-* `master?` - Returns `true` only if the current process is the `root` / `master` process. If the server is non-forking, this method should always return `true`.
+- `workers`: Returns the number of worker processes the server spawns (or `0` if the server runs in a non-forking mode).
 
-* `worker?` - Returns `true` only if the current process is a `worker` process (even if it is also the `root` / `master` process). If the server is non-forking, this method should always return `true`.
+- `master?`: Returns `true` if the current process is the root/master process. If the server is non-forking, this method always returns `true`.
 
-* `running?` - Returns `true` only if the Server is running, `stop` wasn't called **and** a stop signal hadn't been detected.
+- `worker?`: Returns `true` if the current process is a worker process (even if it's also the master process). If the server is non-forking, this method always returns `true`.
 
-* `on_state(state, &block)` - Request the server to call the given `block` when the server enters the given `state`.
+- `running?`: Returns `true` if the server is running, `stop` hasn't been called, and a stop signal hasn't been detected.
 
-    * `state` **MUST** be a Symbol. At the very least, the following states **MUST** be supported:
+- `on_state(state, &block)`: Registers a callback to be called when the server enters the given state.
 
-        * `:on_start` - a `worker` process is starting. If the Server is non-forking, the `root` / `master` process is considered a `worker` and enters this state after `Server.start` has been called.
+  - `state` **MUST** be a symbol, and the following states **MUST** be supported:
 
-        * `:start_shutdown` - The current process is shutting down the Server.
+    - `:on_start`: The worker process is starting. If non-forking, the master process is considered a worker and enters this state after `Server.start` is called.
 
-        * `:on_finish` - The current process finished shutting down the Server.
+    - `:start_shutdown`: The current process is shutting down its server.
 
-        * The Server **MAY** support additional states.
+    - `:on_finish`: The current process finished shutting down its server.
 
-    * `block` **MUST** be a Proc object used as a callback. The Proc object **MUST NOT** take any arguments.
+    - The server **MAY** support additional states.
 
-    * Servers **MUST** support multiple `on_state` calls, allowing them to call multiple `block`s when the server enters the given `state`.
+  - `block` **MUST** be a Proc object used as a callback and **MUST NOT** take any arguments.
+
+  - Servers **MUST** support multiple `on_state` calls, allowing multiple callbacks for a given state.
+
+
+## NeoRack Extensions
+
+Implemented extensions **MUST** publish their existence by adding an appropriate key-value pair to the `Server.extensions` Hash.
+
+The key name **MUST** be the symbol stated in extension specification.
+
+The value for the key-value pair **MUST** be an array indicating the extension's version using [semantic versioning](https://semver.org).
+
+For example, if the extension name is "metal" and the extension is version `"0.1.0-alpha.1"`, the key `Server.extensions[:metal]` **MUST** be set to `[0, 1, 0, "alpha", 1]`.
+
 
 ## The `Server::Event` Class
 
-The `Server::Event` constant MUST point to the class from which `Server` events are instantiated.
+The `Server::Event` constant **MUST** point to the class from which `event` instances are created.
 
-NeoRack Servers **MUST** map the `Server::Event` constant to the class implementing the NeoRack events.
+NeoRack servers **MUST** map the `Server::Event` constant to the class implementing the NeoRack events.
 
-**Note**: overwriting the `Server::Event` constant with another constant SHOULD NOT change the Server's behavior. This is because the Server **MUST** use the `Server::Event` constant to instantiate `events`.
+**Note:** Overwriting the `Server::Event` constant with another constant **SHOULD NOT** change the server's behavior. This is because the server only maps its own internal class to the public constant, making it possible to add functionality to its internal class (not overwriting it).
 
 
 ## The `event` Instance Object (herein `e`)
@@ -148,187 +162,187 @@ NeoRack Servers **MUST** map the `Server::Event` constant to the class implement
 The `event` instance object is designed to provide:
 
 1. Information about the HTTP request.
-1. An editable data store for each HTTP request.
-1. An API allowing a response to be either streamed, sent or upgraded (if supported).
+2. An editable data store for each HTTP request.
+3. An API allowing a response to be either streamed, sent, or upgraded (if supported).
 
-An `event` instance object **MAY** inherit from any class (Hash may be most appropriate) and **MUST** implement the instance methods listed here:
+An `event` instance object **MAY** inherit from any class (e.g., `Hash` may be appropriate) and **MUST** implement the instance methods listed here:
 
-* `[key]` - returns the value associated with the given `key`. If no such value exists, it **MUST** return `nil`. Note:
 
-    * NeoRack Servers **MUST** make incoming HTTP headers available as key-value pairs, where `key`s are **Lowercase Strings**.
+- `[](key)`: Returns the value associated with the given `key`. If no such value exists, it **MUST** return `nil`.
 
-        **Note**:
+  - NeoRack servers **MUST** make incoming HTTP headers available as key-value pairs, where `key`s are **lowercase strings**.
 
-        Headers with multiple values **SHOULD** be an Array of values, but **MAY** be a comma separated String (where allowed by the Header type), or a combination of both (i.e., an Array where some Strings include multiple, comma separated, values).
+    **Note:**
 
-        Abstracting these HTTP protocol details is considered a Framework concern. It is recommended that applications aren't exposed to this HTTP detail, as it's potentially confusing.
+    Headers with multiple values **SHOULD** be an array of values but **MAY** be a comma-separated string (where allowed by the header type), or a combination of both (e.g., an array where some strings include multiple, comma-separated values).
 
-    * NeoRack Servers **MAY** lazily load header data, making header data available only if and when requested.
+    Abstracting these HTTP protocol details is considered a framework concern. It is recommended that applications aren't exposed to this HTTP detail, as it's potentially confusing.
 
-    * MiddleWare / Application Data **SHOULD** use unreserved **Symbol** `key`s unless overwriting header data.
+  - NeoRack servers **MAY** lazily load header data, making header data available only if and when requested.
 
-    * **Symbol** `key`s starting with an underscore (`_`) are reserved for internal Server and Extension data.
+  - Middleware/Application data **SHOULD** use unreserved **symbol** `key`s unless overwriting header data.
 
-    * **Symbol** `key`s starting with `neorack_` are reserved for exposed Server Data.
+  - **Symbol** `key`s starting with an underscore (`_`) are reserved for internal server and extension data.
 
-    * **Symbol** `key`s starting with `neorack_<extension_name>` are reserved for Extensions, where `<extension_name>` is a place holder for the actual extension name.
+  - **Symbol** `key`s starting with `neorack_` are reserved for exposed server data.
 
-    * **String** `key`s are reserved for incoming Header data.
+  - **Symbol** `key`s starting with `neorack_<extension_name>` are reserved for extensions, where `<extension_name>` is a placeholder for the actual extension name.
 
-* `[key]=value` - sets the value of the given `key`.
+  - **String** `key`s are reserved for incoming header data.
 
-    * NeoRack Applications **MUST** limit `key`s passed to the `[]` and `[]=` methods to one of the following native Ruby Types: **String, Symbol**.
+- `[]=(key, value)`: Sets the value of the given `key`.
 
-    * NeoRack Servers **MAY** assume that `key`s are limited to one of the aforementioned allowed types and **MAY** throw an exception when an allowed type is detected.
+  - NeoRack applications **MUST** limit `key`s passed to the `[]` and `[]=` methods to one of the following native Ruby types: **String**, **Symbol**.
 
-    * if `value` is `nil`, the `key` **MAY** be removed from the `event` object.
+  - NeoRack servers **MAY** assume that `key`s are limited to the aforementioned allowed types and **MAY** throw an exception when an unallowed type is detected.
 
-* `each(&block)` - similarly to `on_state`, this method accepts either a handler answering `call` or a `block` (one of which **MUST** be provided). The `each` method will call `block.call(key, value)` or `yield(key, value)` for each key-value pair stored in the event storage.
+  - If `value` is `nil`, the `key` **MAY** be removed from the `event` object.
 
-    **Note**: an Exception **SHOULD** be raised if `block` is missing, as there is no requirement to implement an Enumerator for the `each` method.
+- `each(&block)`: Similar to `on_state`, this method accepts either a handler responding to `call` or a `block` (one of which **MUST** be provided). The `each` method will call `block.call(key, value)` or `yield(key, value)` for each key-value pair stored in the event storage.
 
-    **Note**: NeoRack Servers **MAY**  lazily load header data, in which case `each` **MAY** ignore headers that weren't previously accessed.
+  **Note:** An exception **SHOULD** be raised if `block` is missing, as there is no requirement to implement an Enumerator for the `each` method.
 
-* `headers` – used to overcome lazy header parsing when an app wants to iterate over all incoming headers. Returns `self`.
+  **Note:** NeoRack servers **MAY** lazily load header data, in which case `each` **MAY** ignore headers that weren't previously accessed.
 
-    **Note**: This method **MUST** return the `event` object itself, allowing for method chaining. Use of this method **MUST** force the Server to parse all incoming headers and set them as accessible key-value pairs.
+- `headers`: Used to overcome lazy header parsing when an app wants to iterate over all incoming headers. Returns `self`.
 
-    For example:
+  **Note:** This method **MUST** return the `event` object itself, allowing for method chaining. Use of this method **MUST** force the server to parse all incoming headers and set them as accessible key-value pairs.
 
-    ```ruby
-    # Prints all incoming headers, assuming NeoRack guidelines were followed:
-    e.headers.each do |key, value|
-        if(value.is_a? Array)
-            value.each {|v| puts "#{key}: #{v}" }
-        else
-            puts "#{key}: #{value}"
-        end
+  For example:
+
+  ```ruby
+  # Prints all incoming headers, assuming NeoRack guidelines were followed:
+  e.headers.each do |key, value|
+    next unless key.is_a?(String) # ignore app / server data 
+    if value.is_a?(Array)
+      value.each { |v| puts "#{key}: #{v}" }
+    else
+      puts "#{key}: #{value}"
     end
-    ```
+  end
+  ```
 
-* The following attributes (as if declared using `attr_accessor`): `path`, `query`, `method`, `scheme`, and `status` - all initially set to `nil` unless otherwise specified or previously set.
+- The following attribute accessors (as if declared using `attr_accessor`): `path`, `query`, `method`, `scheme`, and `status` — all initially set to `nil` unless otherwise specified or previously set.
 
-* `path` - returns a String containing the requests path (i.e., `/user?id=0` will result in `/user`). This **MAY NOT** be an empty String. An empty String **MUST** be replaced with the String `"/"`.
+  - `path`: Returns a string containing the request's path (e.g., `/user?id=0` results in `/user`). This **MUST NOT** be an empty string. An empty string **MUST** be replaced with `"/"`.
 
-* `query` - returns a String containing the requests query (the portion of the request URL that follows the `?`, if any, i.e., `/user?id=0` will result in `id=0`). This **MAY** return either `nil` or an empty String when no query was made.
+  - `query`: Returns a string containing the request's query (the portion of the request URL that follows the `?`, if any; e.g., `/user?id=0` results in `id=0`). This **MAY** return either `nil` or an empty string when no query is present.
 
-* `method` -  returns a String containing the HTTP method used, i.e., `"GET"` or `"POST"`. This **MUST NOT** be an empty String.
+  - `method`: Returns a string containing the HTTP method used, e.g., `"GET"` or `"POST"`. This **MUST NOT** be an empty string.
 
-* `scheme` -  returns a String containing the HTTP scheme (`http` / `https`) is available. This value **MUST** be `nil` if the scheme is unknown.
+  - `scheme`: Returns a string containing the HTTP scheme (`"http"` or `"https"`). This value **MUST** be `nil` if the scheme is unknown.
 
-* `length` - returns the total number of bytes in the HTTP request body (payload), returns 0 if no request body / payload was received.
+  - `length`: Returns the total number of bytes in the HTTP request body (payload); returns `0` if no request body/payload was received.
 
-* `gets` does **NOT** accept any arguments and returns a String containing the next "line", or `nil` on EOF.
+- `gets`: Does **NOT** accept any arguments and returns a string containing the next "line," or `nil` on EOF.
 
-* `read` behaves like a subset of `IO#read`. Its signature is `read(maxlen = nil, out_string = nil)`.
+- `read(maxlen = nil, out_string = nil)`: Behaves like a subset of `IO#read`.
 
-    * `read` always reads data in binary format, returning a String in `ASCII-8BIT` encoding or `nil` on EOF.
+  - `read` always reads data in binary format, returning a string in `ASCII-8BIT` encoding or `nil` on EOF.
 
-    * If `read` is called without any arguments or with both `length` and `outbuf` set to `nil` (or missing), it returns a String containing all the remaining data in the `body`, or `nil` on EOF.
+  - If `read` is called without any arguments or with both `maxlen` and `out_string` set to `nil` (or missing), it returns a string containing all the remaining data in the body, or `nil` on EOF.
 
-    * If `length` is provided (and is not `nil`), `length` must be a positive number or zero. If `length` is zero, an empty String is returned. Otherwise, `read` returns a String containing as much as possible of the remaining data in the `body`, **but no more than `length` bytes** (or `nil` on EOF).
+  - If `maxlen` is provided (and is not `nil`), it must be a positive number or zero. If `maxlen` is zero, an empty string is returned. Otherwise, `read` returns a string containing as much as possible of the remaining data in the body, **but no more than `maxlen` bytes** (or `nil` on EOF).
 
-    * If the optional `outbuf` argument is provided (and isn't `nil`), it must reference a String, which will receive the data - in which case either the `outbuf` String is returned, or `nil` on EOF.
+  - If the optional `out_string` argument is provided (and isn't `nil`), it must reference a string, which will receive the data—in which case either the `out_string` string is returned, or `nil` on EOF.
 
-* `seek` - behaves like a subset of `IO#seek`. Its signature is `seek(pos)`.
+- `seek(pos)`: Behaves like a subset of `IO#seek`.
 
-    * If `pos` is a positive number, it moves the current read position in the `body` to `pos` bytes. If `pos` is negative, it moves the read position in the `body` to `EOF-pos` bytes (counts from the end), where `-1 == EOF`.
+  - If `pos` is a positive number or `0`, it moves the current read position in the body to `pos` bytes. If `pos` is negative, it moves the read position in the body to `EOF - pos` bytes (counts from the end), where `-1` is EOF.
 
-    * If the current position in the `body` is moved beyond the end of the `body`, the current position is set to the end of the `body`.
+  - If the current position in the body is moved beyond the end of the body, the current position is set to the end of the body.
 
-    * If the current position in the `body` is moved before the start of the `body`, the current position is set to the start of the `body`.
+  - If the current position in the body is moved before the start of the body, the current position is set to the start of the body.
 
-    * The `seek` method **MUST** return the new current position in the `body`.
+  - The `seek` method **MUST** return the new current position in the body.
 
-* `status`- gets / sets the response status as a Number. When setting the `status` (using `status=n`):
 
-    * New `status` **MUST** be a [valid HTTP status code Number](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status).
+- `status`: Gets or sets the response status as a number. When setting the `status` (using `status = n`):
 
-    * Servers sould set `status` to `200` as the default value indicating everything is okay.
+  - The new `status` **MUST** be a [valid HTTP status code number](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status).
 
-    * Servers **MAY** treat invalid (non-zero) numbers as they see fit.
+  - Servers **SHOULD** set `status` to `200` as the default value indicating everything is okay.
 
-    * The number `0` is reserved for extensions and **MUST** either be treated as described in any implemented extension or as `200 OK`.
+  - Servers **MAY** treat invalid (non-zero) numbers as they see fit.
 
-    * Servers **SHOULD** ignore a `status=` call if the response status was already sent.
+  - The number `0` is reserved for extensions and **MUST** either be treated as described in any implemented extension or as `200 OK`.
 
-    * Note: Servers **MUST NOT** send the `"content-length"` or `"content-type"` headers (nor any payload) when the `status` is 1xx, 204 or 304. In these cases, any calls to `write` or any `data` argument passed to `finish` **MUST** be ignored by the server (except `data.close` **MUST** still be called if `data` is a `File` instance).
+  - Servers **SHOULD** ignore a `status=` call if the response status was already sent.
 
-* `write_header(name, value)` - sets a response header and returns `true`. If headers were already sent or either `write` or `finish` previously called, it **MUST** return `false`.
+  - **Note:** Servers **MUST NOT** send the `"content-length"` or `"content-type"` headers (nor any payload) when the `status` is 1xx, 204, or 304. In these cases, any calls to `write` or any `data` argument passed to `finish` **MUST** be ignored by the server (except that `data.close` **MUST** still be called if `data` is a `File` instance).
 
-    * The header `name` **MUST** be a lower case String. Servers **MAY** enforce this by converting String objects to lower case.
+- `write_header(name, value)`: Sets a response header and returns `true`. If headers were already sent or either `write` or `finish` was previously called, it **MUST** return `false`.
 
-    * The `write_header` method is **irreversible**. Servers **MAY** write the header immediately, as they see fit.
+  - The header `name` **MUST** be a lowercase string. Servers **MAY** enforce this by converting string objects to lowercase.
 
-    * When frameworks provide an interface for setting cookies, they **SHOULD** consider supporting all the features available for the [`set-cookie` header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie).
+  - The `write_header` method is **irreversible**. Servers **MAY** write the header immediately, as they see fit.
 
-* `write(data)` - **streams** the data, using the appropriate encoding. **Note**:
+  - When frameworks provide an interface for setting cookies, they **SHOULD** consider supporting all the features available for the [`Set-Cookie` header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie).
 
-    * NeoRack Servers MAY accept any Ruby Object as `data`, and MUST accept a String instance.
+- `write(data)`: **Streams** the data, using the appropriate encoding. **Note:**
 
-    * If the Server accepts an `IO` instances as `data`, then the server **MUST** call `data`'s `close` method at the appropriate time. This **MUST** be done whether `data` ca be sent or not.
+  - NeoRack servers **MAY** accept any Ruby object as `data`, and **MUST** accept a String instance.
 
-    * The Server MUST allow `write` to be called multiple times while following the HTTP protocol specifications.
+  - If `data` is an `IO` instance, then the server **MUST** call `data`'s `close` method at the appropriate time. This **MUST** be done whether `data` can be sent or not and whether the server chooses to support `File` / `IO` objects as acceptable `data`.
 
-        For example, when running HTTP/1.1 and the `"content-length"` header hadn't been set prior to a call to `write`, the server **MUST EITHER** use `chunked` [transfer encoding](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Transfer-Encoding), **OR** set the [`connection: close` header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection) and close the connection once `finish` was called.
+  - The server **MUST** allow `write` to be called multiple times while following the HTTP protocol specifications.
 
-    * If the headers weren't previously sent, they **MUST** be sent (or locked) at this point. Once `write` or `finish` are called, calls to `write_header` **MUST** return `false`.
+    For example, when running HTTP/1.1 and the `"content-length"` header hadn't been set prior to a call to `write`, the server **MUST EITHER** use `chunked` [transfer encoding](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Transfer-Encoding), **OR** set the [`Connection: close` header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection) and close the connection once `finish` is called.
 
-    * `write` MUST return `true` if the Server accepted the `data` Object to be sent. If `data` will NOT be sent, the Server SHOULD return `false` rather than raising an exception.
+  - If the headers weren't previously sent, they **MUST** be sent (or locked) at this point. Once `write` or `finish` are called, calls to `write_header` **MUST** return `false`.
 
-* `finish([data])` - completes the response. Note:
+  - `write` **MUST** return `true` if the server accepted the `data` object to be sent. If `data` will NOT be sent, the server **SHOULD** return `false` rather than raising an exception.
 
-    * Subsequent calls to `finish` **MUST** be ignored (except `close` **MUST** still be called if `data` is a `File` instance).
 
-    * `data` MUST follow the same semantics as in `write`, but it MAY be `nil` (no additional data to send).
+- `finish(data = nil)`: Completes the response. Note:
 
-    * If `data` is an `IO` instance, then the server **MUST** call it's `close` method.
+  - Subsequent calls to `finish` **MUST** be ignored (except `close` **MUST** still be called if `data` is a `File` instance).
 
-    * If the headers weren't previously sent, they **MUST** be sent before sending any data.
+  - `data` **MUST** follow the same semantics as in `write`, but it **MAY** be `nil` (no additional data to send).
 
-    * If `data` was provided, it should be sent. If no previous calls to `write` were made, the server **MAY** set the `"content-length"` for the response before sending the `data`.
+  - If the headers weren't previously sent, they **MUST** be sent before sending any data.
 
-* `headers_sent?` - returns `true` if additional headers cannot be sent (the headers were already sent). Otherwise returns `false`. Servers **MAY** return `false` **even if** the response is implemented using `chunked` encoding with trailers, allowing certain headers to be sent after the response was sent.
+  - If `data` was provided, it should be sent. If no previous calls to `write` were made, the server **MAY** set the `"content-length"` for the response before sending the `data`.
 
-* `valid?` - returns `true` if data may still be sent (the connection is open and `finish` hadn't been called yet). Otherwise returns `false`.
+- `headers_sent?`: Returns `true` if additional headers cannot be sent (the headers were already sent). Otherwise, returns `false`. Servers **MAY** return `false` **even if** some headers were sent, as long as it is possible to send additional headers - e.g., if the response is implemented using `chunked` encoding with trailers, allowing certain headers to be sent after the response was sent.
 
-* `peer_addr` - **SHOULD** return the peers network address as a String. If the address is unknown, this method **MUST** return `nil`. Servers **MAY** always return `nil`.
+- `valid?`: Returns `true` if data may still be sent (the connection is open and `finish` hasn't been called yet). Otherwise, returns `false`.
 
-* `dup` - (optional) **SHOULD** throw an exception, as the `event` object **MUST NOT** be duplicated by the NeoRack Application.
- 
-## NeoRack Extensions
+- `peer_addr`: **SHOULD** return the peer's network address as a string. If the address is unknown, this method **MUST** return `nil`. Servers **MAY** always return `nil`.
 
-Servers implementing a NeoRack extension **MUST** indicate their support by adding an appropriate key-value pair to the `event` instance object.
+- `dup`: (optional) **SHOULD** raise an exception, as the `event` object **MUST NOT** be duplicated by the NeoRack application.
 
-The key name **MUST** be a Symbol starting with `rack_`, followed by the extension name and then followed by a question mark.
-
-The value for the key-value pair **MUST** be an Array indicating the extensions version using [semantic versioning](https://semver.org).
-
-i.e., if the extension name is "Metal" and the extension is version `"0.1.0-alpha.1"`, the key `e[:rack_metal?]` **MUST** be set to `[0, 1, 0, "alpha", 1]`.
 
 ## MiddleWare
 
-Applications replacing the `e.handler` object **MUST** be aware that the MiddleWare might not be able to perform cleanup as the MiddleWare stack for the new handler might be different than the existing MiddleWare stack.
+Applications somehow replacing the `e.handler` object **MUST** be aware that the middleware might not be able to perform cleanup, as the middleware stack for the new handler might be different from the existing middleware stack.
 
-NeoRack MiddleWare is a Singleton Module or Class. It MUST delegate any unhandled method calls to the NeoRack Application and behave as if it were the application itself.
+NeoRack middleware is a singleton module or class. It **MUST** delegate any unhandled method calls to the NeoRack application and behave as if it were the application itself.
 
-i.e.
+For example:
 
 ```ruby
-require 'forwardable'
-class MiddleWare    
-    def initialize(app); @app = app; end
-    def on_http(event); @app.on_http(event); end
-    def on_finish(event); @app.on_finish(event); end
-    def call(env); @app.call(env); end # Rack extension
-private
-    def method_missing(method_name, *arguments)
-        m = self.define_singleton_method(method_name) {|*args| @app.send(method_name, *args) }
-        m.call(*arguments)
-    end
+class Middleware
+  def initialize(app)
+    @app = app
+  end
+
+  def on_http(event)
+    @app.on_http(event)
+  end
+
+  def on_finish(event)
+    @app.on_finish(event)
+  end
+
+  private
+
+  def method_missing(method_name, *arguments, &block)
+    @app.send(method_name, *arguments, &block)
+  end
 end
 ```
 
-MiddleWare **MAY** stop the request from reaching the application by calling either `e.finish` or `e.close` before the next MiddleWare or the application is called.
+Middleware **MAY** stop the request from reaching the application by calling either `e.finish` or `e.close` before the next middleware or the application is called.
 
-MiddleWare **SHOULD NOT** replace the `event` object with a new `event` object. Although this would allow the MiddleWare to control the application's behavior, it might cause unpredictable results.
+Middleware **SHOULD NOT** replace the `event` object with a new `event` object. Although this would allow the middleware to control the application's behavior, it might cause unpredictable results.

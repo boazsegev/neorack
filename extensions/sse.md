@@ -20,6 +20,8 @@ A NeoRack Applications that supports this extension **SHOULD** responds to the f
 
 * `on_open(e)` - called when the SSE connection is established.
 
+* `on_eventsource_reconnect(e, id)` - called when a client reconnects. `id` is the last message the client reports as received.
+
 * `on_message(e, msg)` - called when a message is received. `msg` will be an Object instance that allows the following properties to be fully accessed: `id` (the event ID); `event` (the channel / event); `data` (the SSE payload).
 
 * `on_close(e)` - called when the SSE connection is closed.
@@ -29,6 +31,14 @@ A NeoRack Applications that supports this extension **SHOULD** responds to the f
 * `on_drained(e)` - called when all calls to `e.write` have been handled and the outgoing buffer is now empty. NeoRack Servers **MAY** choose to ignore this callback.
 
 IF `on_authenticate_sse` is missing, Servers **MUST** provide a default implementation that calls `on_authenticate` instead. If `on_authenticate` too is missing, Servers **MUST** provide a default implementation that returns `true` **ONLY IF** the application responds to `on_open`.
+
+### The `on_finish` callback timing
+
+`on_finish` **MUST ALWAYS** be called by NeoRack Servers, or else cleanup may be too difficult to reason about.
+
+When implementing this extension, NeoRack Servers **MUST** call `on_finish` after either a failed client authentication or after calling `on_close`.
+
+Cleanup is at the end.
 
 ## The `event` Instance Object (herein `e`)
 
@@ -42,7 +52,7 @@ The following methods MUST be implemented by the `event` instance object:
 
 * `e.write(data)` - writes data to the connection or the connection's buffer.
 
-    If `data` **SHOULD** be a UTF-8 encoded String.
+    In general, `data` **SHOULD** be a UTF-8 encoded String.
 
     If `data` is NOT a String, the server **MAY** attempt to convert it to a JSON String, allowing Hashes, Arrays and other native Ruby objects to be sent over the wire.
 
@@ -52,7 +62,13 @@ The following methods MUST be implemented by the `event` instance object:
 
     **Note**: `e.write` is shared between HTTP, WebSocket and SSE connections. Servers **MUST** ensure that the `data` argument is handled correctly based on the connection type.
 
-    **Note**: SSE clients **SHOULD NOT** be able to `write`, as this violates the HTTP protocol. However, abusing the HTTP protocol could be beneficial, so... :)
+    **Note**: SSE clients **SHOULD NOT** be able to `write`, as this violates the HTTP protocol. However, abusing the HTTP protocol could be beneficial, so... :) ... the specification doesn't really care.
+
+* `e.write_sse(id, event, data)` - allows the writing of data in SSE specific format.
+    
+    The `id` and `event` **MUST** be a UTF-8 encoded String (or `nil`). `data` be a UTF-8 encoded String.
+
+    This method **SHOULD** behave the same as `e.write`, only with the addition of `id` and `event` name information passed along to the SSE client according to the Event Source specification.
 
 * `e.pending` - **SHOULD** return the number of bytes that need to be sent before the next `on_drained` callback is called. **MAY** return `true` instead of a number, if the outgoing buffer isn't empty. **Must** return `false` if the outgoing buffer is empty **OR** if the Server never calls `on_drained`.
 

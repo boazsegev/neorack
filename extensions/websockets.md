@@ -30,6 +30,14 @@ A NeoRack Applications that supports this extension **SHOULD** responds to the f
 
 IF `on_authenticate_websocket` is missing, Servers **MUST** provide a default implementation that calls `on_authenticate` instead. If `on_authenticate` too is missing, Servers **MUST** provide a default implementation that returns `true` **ONLY IF** the application responds to either `on_open` or `on_message`.
 
+### The `on_finish` callback timing
+
+`on_finish` **MUST ALWAYS** be called by NeoRack Servers, or else cleanup may be too difficult to reason about.
+
+When implementing this extension, NeoRack Servers **MUST** call `on_finish` after either a failed client authentication or after calling `on_close`.
+
+Cleanup is at the end.
+
 ## The `event` Instance Object (herein `e`)
 
 The following methods MUST be implemented by the `event` instance object:
@@ -42,7 +50,7 @@ The following methods MUST be implemented by the `event` instance object:
 
 * `e.write(data)` - writes data to the connection or the connection's buffer.
 
-    If `data` **SHOULD** be a String. The Server **SHOULD** send UTF-8 encoded Strings as text messages and Binary encoded Strings as binary messages.
+    In general, `data` **SHOULD** be a String. The Server **SHOULD** send UTF-8 encoded Strings as text messages and Binary encoded Strings as binary messages.
 
     If `data` is NOT a String, the server **MAY** attempt to convert it to a JSON String, allowing Hashes, Arrays and other native Ruby objects to be sent over the wire.
 
@@ -50,7 +58,7 @@ The following methods MUST be implemented by the `event` instance object:
 
     `e.write` **MUST** return `true` if the data was written to the connection or the connection's buffer. `e.write` **SHOULD** return `false` if the data was not written (i.e., the connection is closed and writing is impossible), but **MAY** also throw an exception.
 
-    **Note**: `e.write` is shared between HTTP and WebSocket connections. Servers **MUST** ensure that the `data` argument is handled correctly based on the connection type.
+    **Note**: `e.write` is shared between HTTP, WebSocket and SSE connections. Servers **MUST** ensure that the `data` argument is handled correctly based on the connection type.
 
 * `e.pending` - **SHOULD** return the number of bytes that need to be sent before the next `on_drained` callback is called. **MAY** return `true` instead of a number, if the outgoing buffer isn't empty. **Must** return `false` if the outgoing buffer is empty **OR** if the Server never calls `on_drained`.
 

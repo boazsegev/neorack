@@ -1,6 +1,8 @@
 # NeoRack Specification Rational
 
-This is my understanding so far. I tried sticking to all the good things the current Rack specification offers, while supporting possible async / streaming / evented implementations.
+This is my understanding so far.
+
+I tried sticking to all the good things the current Rack specification offers, while supporting possible async / streaming / evented implementations.
 
 I would not only love your input, but I would appreciate it if you posted totally different ideas / rational.
 
@@ -14,13 +16,15 @@ I also tried to make it possible to detect Server supported extensions during st
 
 ### Avoiding Unnecessary Object Allocations
 
-By using a single `event` object, we avoid unnecessary object allocations where possible. By not restricting the `event` object implementation to a specific data structure, we allow different implementations to attempt more efficient approaches to the HTTP event data storage – including implementations that directly write to the HTTP transport.
+By using a single `event` object, we avoid unnecessary object allocations where possible.
+
+By not restricting the `event` object implementation to a specific data structure, we allow different implementations to attempt more efficient approaches to the HTTP event data storage – including implementations that directly write to the HTTP transport and implementation that lazily parse header data.
 
 ### Abstracting away the Network Layer
 
 I think that Servers shouldn't expose the network layer, at all.
 
-If application developers need raw TCP/IP access, then either the specification is faulty (and should be fixed) or the application is a remote edge case that should be implemented by a development team that can roll their own servers.
+If application developers need raw TCP/IP access, then either the specification is faulty (and should be fixed) or the application is a remote edge case that should be implemented by a development team that can roll their own servers (or, perhaps, the app requirements should be reassessed).
 
 ### Abstracting away the HTTP Layer
 
@@ -42,7 +46,7 @@ To free developers to choose their own concurrency model, it requires the server
 
 I don't believe MiddleWare can continue to exist in the same way it existed so far.
 
-The moment we introduce Async / Streaming we allow the app direct access to the output stream, bypassing the MiddleWare's control over the output (unless, of-course, the MiddleWare somehow was allowed to replaces the whole `event` object).
+The moment we introduce Async / Streaming we allow the app direct access to the output stream, bypassing the MiddleWare's control over the output (unless, of-course, the MiddleWare somehow was allowed to replaces the whole `event` object or network layer).
 
 This prevents the MiddleWare from being able to completely modify the output stream, as the MiddleWare is limited to:
 
@@ -50,16 +54,18 @@ This prevents the MiddleWare from being able to completely modify the output str
 
 * Assigning resources to the event object (pre-App and post-App operations), including database connection assignments, etc'.
 
-* Replacing the App by answering the the event (pre-App operations).
+* Diverting the event to a different App / Handler (pre-App / App replacement).
+
+* Handling the the event (pre-App / App replacement).
 
 ### Goodbye Logging - All Hail Logging
 
 Logging is important. However, IMHO, it's counterproductive to encourage developers to unify the server and application logging outputs.
 
-In fact, by separating the logging concerns, we are both promoting separation of concerns and (possibly) hinting to developers that server level events could be logged to a different medium than application level events.
+In fact, by separating the logging concerns, we are both promoting separation of concerns and (possibly) hinting to developers that server level events could be logged to a different medium than application level and business logic events.
 
 ### Minimal String Conversions
 
-I understand history has us adding `HTTP_` to the header names and capitalizing the letters and converting `-` into `_`... but honestly, things would be faster if we used the HTTP headers as is (except, maybe, when making sure they were all lower-case to match HTTP/2 and promote unity).
+I understand history has us adding `HTTP_` to the header names and converting `-` into `_`, etc'... but honestly, things would be faster if we used the HTTP headers as is (except, maybe, when making sure they were all lower-case to match HTTP/2 and promote unity).
 
-The main worry here is that adding those extra 5 bytes may require re-allocating the whole String (not only copying the data at a 5 byte offset). This is a waste of resources and should be avoided.
+The main worry here is that adding those extra 5 bytes may require re-allocating the whole String (not only copying the data at a 5 byte offset). This is a waste of both time and resources and I believe this should be avoided.
