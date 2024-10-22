@@ -126,9 +126,9 @@ A `Server` object **MUST** respond to the following methods:
 
     - `:on_start`: The worker process is starting. If non-forking, the master process is considered a worker and enters this state after `Server.start` is called.
 
-    - `:start_shutdown`: The current process is shutting down its server.
+    - `:on_shutdown`: The current process is shutting down its server.
 
-    - `:on_finish`: The current process finished shutting down its server.
+    - `:on_stop`: The server in the current process stopped.
 
     - The server **MAY** support additional states.
 
