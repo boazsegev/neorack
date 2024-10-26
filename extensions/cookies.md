@@ -34,8 +34,12 @@ A NeoRack Server `event` instance object (herein `e`) that supports this extensi
 
     ```ruby
     set_cookie(name: "MyCookie", value: "My non-secret data", domain: "localhost", max_age: 1_728_000)
+    set_cookie("MyCookie", "My non-secret data", domain: "localhost", max_age: 1_728_000)
     ```
     
     For more details, see: [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
 
 * `e.each_cookie(&block)` - calls `block` for each name-value cookie pair received, as well as ones set by a call to `e.set_cookie` that returned `true`.
+
+
+When implementing this specification, developers **SHOULD** support all the features available for the [`Set-Cookie` header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie), even if not listed here and even if it would require additional arguments to the `set_cookie` method.
