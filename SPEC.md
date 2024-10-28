@@ -271,26 +271,26 @@ An `event` instance object **MAY** inherit from any class (e.g., `Hash` may be a
 
   - **Note:** Servers **MUST NOT** send the `"content-length"` or `"content-type"` headers (nor any payload) when the `status` is 1xx, 204, or 304. In these cases, any calls to `write` or any `data` argument passed to `finish` **MUST** be ignored by the server (except that `data.close` **MUST** still be called if `data` is a `File` instance).
 
+- **`write_header(name, value)`**: Sets a response header and returns `true`. If headers have already been sent, or if either `write` or `finish` has been previously called, it **MUST** return `false`.
 
-- `write_header(name, value)` Sets a response header and returns `true`. If headers have already been sent, or if either `write` or `finish` has been previously called, it **MUST** return `false`.
+  - The header `name` **MUST** be a lowercase `String`. Servers **MAY** enforce this by converting string objects to lowercase.
 
-  - The header `name` **MUST** be a lowercase String. Servers **MAY** enforce this by converting string objects to lowercase.
+  - Servers **MAY** accept a `Symbol` as the header `name`. Applications **MUST NOT** rely on such behavior.
 
-  - Servers **MAY** accept a Symbol as the header `name`. Applications **MUST NOT** rely on such behavior.
-
-  - The `value` **MUST** be either a String, an Array of strings, or `nil`. Servers **SHOULD NOT** (but **MAY**) accept other `value` types (e.g., Symbol).
+  - The `value` **MUST** be either a `String`, an `Array` of Strings, or `nil`. Servers **SHOULD NOT** (but **MAY**) accept other `value` types (e.g., `Symbol`).
 
     - **If `value` is `nil`**:
       - The server **SHOULD** do nothing and return `false`.
       - Alternatively, the server **MAY** delete any existing headers named `name` from the response (as if `write_header` had never been called for that header) and return `true`. Applications **MUST NOT** rely on such behavior.
 
-    - **If `value` is a String**:
-      - A response header with the given `name` is added to the response and set to `value`. If `name` already exists, servers **SHOULD** send multiple headers with the same `name`, but **MAY** add `value` to the existing header using HTTP semantics.
-      - Servers **MAY** split `value` on newline characters and treat it as an array of strings (for backward compatibility with old-style Rack). Applications **MUST NOT** rely on such behavior.
+    - **If `value` is a `String`**:
+      - A response header with the given `name` is added to the response and set to `value`. If `name` already exists, servers **SHOULD** send multiple headers with the same `name`, but **MAY** append `value` to the existing header using HTTP semantics.
+      - Servers **MAY** split `value` on newline characters and treat it as an array of `String`s (for backward compatibility with old-style Rack). Applications **MUST NOT** rely on such behavior.
 
-    - **If `value` is an Array of Strings** the method behaves as if called multiple times with the same `name`, once for each element of `value`.
+    - **If `value` is an `Array` of `String`s**:
+      - The method behaves as if called multiple times with the same `name`, once for each element of `value`.
 
-  - The `write_header` method **MUST** be considered by any NeoRack Application as **irreversible**. Servers **MAY** write the header immediately to the client.
+  - The `write_header` method **MUST** be considered by any NeoRack application as **irreversible**. Servers **MAY** write the header immediately to the client.
 
 - `write(data)`: **Streams** the data, using the appropriate encoding. **Note:**
 
