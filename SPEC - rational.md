@@ -8,6 +8,16 @@ I would not only love your input, but I would appreciate it if you posted totall
 
 Here's some of the things I am trying to accomplish:
 
+### Make Streaming a First Class Citizen - Let CGI play nice with Async
+
+I don't believe that any one concurrency model should be enforced by the specification, especially when such a preference imposes limitations on the things our code can do.
+
+The specification should be implementable in any concurrency model, including linear code or async implementations, supporting streaming applications alongside the classical CGI / Request-response model.
+
+This means that CGI (linear code) must not be a requirement. Web applications should be able to "save" the request somewhere and respond later (i.e., when long polling).
+
+To free developers to choose their own concurrency model, it requires the server to support a finalization method (i.e. `finish`) and possibly a cleanup callback / hook (i.e., `on_finish`).
+
 ### Making the Design Modular (allowing for extensions)
 
 This design doesn't include optional features such as `rack.hijack`. All optional features (IMHO) should be specified in extensions rather than the main specification.
@@ -32,16 +42,6 @@ Although I believe it's impossible to abstract away all the HTTP protocol detail
 
 The rest, hopefully, would be abstracted away by frameworks or community gems that will implement HTTP details (such as cookie setting, MIME part parsing, etc').
 
-### Let CGI play nice with Async
-
-I don't believe that any one concurrency model should be enforced by the specification.
-
-The specification should be implementable in any concurrency model, including linear code or async implementations.
-
-This means that CGI (linear code) must not be a requirement. Web applications should be able to "save" the request somewhere and respond later (i.e., when long polling).
-
-To free developers to choose their own concurrency model, it requires the server to support a finalization method (i.e. `finish`) and possibly a cleanup callback / hook (i.e., `on_finish`).
-
 ### MiddleWare Evolves
 
 I don't believe MiddleWare can continue to exist in the same way it existed so far.
@@ -62,10 +62,10 @@ This prevents the MiddleWare from being able to completely modify the output str
 
 Logging is important. However, IMHO, it's counterproductive to encourage developers to unify the server and application logging outputs.
 
-In fact, by separating the logging concerns, we are both promoting separation of concerns and (possibly) hinting to developers that server level events could be logged to a different medium than application level and business logic events.
+In fact, by separating the logging concerns, we are both promoting separation of concerns and (possibly) hinting to developers that server level events could be logged to a different medium than application level and business logic events. This can also minimize the amount of "noise" when following the log output for a specific issue.
 
 ### Minimal String Conversions
 
 I understand history has us adding `HTTP_` to the header names and converting `-` into `_`, etc'... but honestly, things would be faster if we used the HTTP headers as is (except, maybe, when making sure they were all lower-case to match HTTP/2 and promote unity).
 
-The main worry here is that adding those extra 5 bytes may require re-allocating the whole String (not only copying the data at a 5 byte offset). This is a waste of both time and resources and I believe this should be avoided.
+In addition to the obvious wastefulness of extra memory space and looping over the string to mutate it, adding those extra 5 bytes forces us to choose between separation of concerns (the Rack layer sitting above the HTTP Server) and performance (baking the Rack specification directly into the HTTP parsing stage). This is a waste of both computer and human time and resources and I believe this should be avoided.

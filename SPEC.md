@@ -294,7 +294,9 @@ An `event` instance object **MAY** inherit from any class (e.g., `Hash` may be a
 
 - `write(data)`: **Streams** the data, using the appropriate encoding. **Note:**
 
-  - NeoRack servers **MAY** accept any Ruby object as `data`, and **MUST** accept a String instance.
+  - NeoRack servers **MAY** accept any Ruby object as `data`, and **MUST** accept either a String instance or `nil`.
+
+  - If `data` is `nil`, servers MUST send any pending headers, making further calls to `write_header` behave accordingly.
 
   - If `data` is an `IO` instance, then the server **MUST** call `data`'s `close` method at the appropriate time. This **MUST** be done whether `data` can be sent or not and whether the server chooses to support `File` / `IO` objects as acceptable `data`.
 
