@@ -4,12 +4,6 @@ NeoRack, like Rack, provides [a specification](./SPEC.md) detailing how Ruby Ser
 
 Where Rack is based on the historical CGI specification, NeoRack looks to the future and aims to provide solutions for modern Web Applications.
 
-## Evented, Blocking or Async?
-
-The choice is yours.
-
-[The NeoRack specification](./SPEC.md) is designed to force the underlying architecture into allowing you to choose the best approach for your needs.
-
 ## Backwards compatibility?
 
 > "[All for the sake of momentum,](https://youtu.be/2F-0pKS3xgk?t=105)
@@ -22,11 +16,11 @@ The choice is yours.
 
 NeoRack applications are designed in a way that allows NeoRack to "host" or contain one or more Rack applications - this way, backwards compatibility can be achieved.
 
-However, the Rack specification simply has too many limitations and it's making it hard for Ruby Web Applications to enjoy modern approaches and features.
+However, the Rack specification simply has too many limitations and it's making it hard for Ruby Web Applications to leverage modern web technologies and features.
 
 Much has been written about this, [issues were already glaring at us more than 12 years ago](http://blog.plataformatec.com.br/2012/06/why-your-web-framework-should-not-adopt-rack-api/)... but backwards compatibility is alluring and momentum has its way.
 
-Maybe the existing Rack design will prove to be better and NeoRack will fade away, much like [Rack-Next](https://github.com/Wardrop/Rack-Next), [The Metal](https://github.com/tenderlove/the_metal), and others. Maybe NeoRack will prove better, but still momentum will win.
+Perhaps the existing Rack design will prove to be better and NeoRack will fade away, much like [Rack-Next](https://github.com/Wardrop/Rack-Next), [The Metal](https://github.com/tenderlove/the_metal), and others. Maybe NeoRack will prove better, but still momentum will win.
 
 But if we don't allow ourselves a clean slate and a fresh start - how would we ever know?
 
