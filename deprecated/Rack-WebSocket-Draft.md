@@ -1,6 +1,8 @@
 ### Draft State
 
-This draft is also implemented by [the Agoo server](https://github.com/ohler55/agoo) according to the specifications stated in [Rack PR#1272](https://github.com/rack/rack/pull/1272).
+This draft is implemented by the [iodine](https://github.com/boazsegev/iodine) and [Agoo](https://github.com/ohler55/agoo) servers, according to the specifications stated in [Rack PR#1272](https://github.com/rack/rack/pull/1272).
+
+However, as the specification was never adopted, it should be considered deprecated and shouldn't be relied upon.
 
 ---
 ## Purpose
