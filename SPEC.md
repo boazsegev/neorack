@@ -92,7 +92,7 @@ A `Server` object **MUST** respond to the following methods:
 
   - The value **MUST** be an array indicating the extension's version ([semantic versioning](https://semver.org)).
 
-  - The `Server` object **MUST** include the `:neo_rack` key, indicating the version of the NeoRack specification it supports.
+  - The `Server` object **MUST** include the `:neo_rack` key in the `extensions`, indicating the version of the NeoRack specification it supports.
 
 - `listen(url, handler)`: Configures the server to listen on the given `url` and use the specified `handler` to process incoming requests.
 
@@ -124,11 +124,11 @@ A `Server` object **MUST** respond to the following methods:
 
   - `state` **MUST** be a symbol, and the following states **MUST** be supported:
 
-    - `:on_start`: The worker process is starting. If non-forking, the master process is considered a worker and enters this state after `Server.start` is called.
+    - `:start`: The worker process is starting. If non-forking, the master process is considered a worker and enters this state after `Server.start` is called.
 
-    - `:on_shutdown`: The current process is shutting down its server.
+    - `:start_shutdown`: The current process is shutting down its server.
 
-    - `:on_stop`: The server in the current process stopped.
+    - `:stop`: The server in the current process stopped.
 
     - The server **MAY** support additional states.
 
