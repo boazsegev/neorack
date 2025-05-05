@@ -248,6 +248,8 @@ An `event` instance object **MAY** inherit from any class (e.g., `Hash` may be a
 
 - `seek(pos)`: Behaves like a subset of `IO#seek`.
 
+  - If `pos` is `nil`, `seek` must return the current byte position in the body.
+
   - If `pos` is a positive number or `0`, it moves the current read position in the body to `pos` bytes. If `pos` is negative, it moves the read position in the body to `EOF - pos` bytes (counts from the end), where `-1` is EOF.
 
   - If the current position in the body is moved beyond the end of the body, the current position is set to the end of the body.

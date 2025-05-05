@@ -20,13 +20,15 @@ A NeoRack Server `event` instance object (herein `e`) that supports this extensi
 
     Cookies that were set using `set_cookie` should be made available if `e.set_cookie` returned `true`.
 
-* `e.set_cookie(name, value = nil, max_age = 0, domain = nil, path = nil, same_site = nil, secure = false, http_only = false, partitioned = false)` - sets the value of the named cookie and returns `true` upon success.
+* `e.set_cookie(name, value = nil, max_age = 0, domain = nil, path = nil, same_site = (:default || :none || :lax || :strict), secure = false, http_only = false, partitioned = false)` - sets the value of the named cookie and returns `true` upon success.
 
     If `e.headers_sent?` returns `true`, calling this method **SHOULD** return `false` but **MAY** raise an exceptions.
     
     If `value` is `nil`, the cookie will be deleted.
 
-    If `:max_age` is 0 (default), cookie will be session cookie and will be deleted by the browser at its discretion.
+    If `max_age` is 0 (default), cookie will be session cookie and will be deleted by the browser at its discretion.
+
+    The `same_site` parameter **MUST** be either `nil` or a Symbol. The following Symbols **MUST** be supported: `:default`, `:none`, `:lax`, `:strict`. 
     
     This should behave similar to calling `write_header`, except that the cookie **MUST** be accessible when using the `e.cookie` method.
 
@@ -36,6 +38,8 @@ A NeoRack Server `event` instance object (herein `e`) that supports this extensi
     set_cookie(name: "MyCookie", value: "My non-secret data", domain: "localhost", max_age: 1_728_000)
     set_cookie("MyCookie", "My non-secret data", domain: "localhost", max_age: 1_728_000)
     ```
+
+    The Server **SHOULD NOT** (but **MAY**) change a cookie's name or value in any way necessary. If a Server does change a cookie's name or value (such as when implementing percent encoding), that change **MUST** be automatically reversed.
     
     For more details, see: [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
 

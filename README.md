@@ -1,6 +1,6 @@
 # NeoRack - Taking Ruby's Rack into the Future
 
-NeoRack, like Rack, provides [a specification](./SPEC.md) detailing how Ruby Servers and Web Applications interact.
+NeoRack, like [Rack](https://github.com/rack/rack), provides [a specification](./SPEC.md) detailing how Ruby Servers and Web Applications interact.
 
 Where Rack is based on the historical CGI specification, NeoRack looks to the future and aims to provide solutions for modern Web Applications.
 
