@@ -48,6 +48,8 @@ Similar to Rack, NeoRack servers **SHOULD** support `.ru` and `.nru` configurati
 
 The required NeoRack DSL is limited to the `use` and `run` methods, where `use` adds middleware and `run` sets the application and starts the server.
 
+The optional NeoRack DSL method `map` **SHOULD** be implemented where possible, even if routing implementations differ in resulting routing logic. The `map` method should accept both a `url` to map to and an optional `handler` (as well as an optional block).
+
 This design allows servers to support both NeoRack and Rack applications simultaneously.
 
 ```ruby
@@ -222,9 +224,11 @@ An `event` instance object **MAY** inherit from any class (e.g., `Hash` may be a
   end
   ```
 
-- The following attribute accessors (as if declared using `attr_accessor`): `path`, `query`, `method`, `scheme`, and `status` — all initially set to `nil` unless otherwise specified or previously set.
+- The following attribute accessors (as if declared using `attr_accessor`): `path`, `opath`, `query`, `method`, `scheme`, and `status` — all initially set to `nil` unless otherwise specified or previously set.
 
   - `path`: Returns a string containing the request's path (e.g., `/user?id=0` results in `/user`). This **MUST NOT** be an empty string. An empty string **MUST** be replaced with `"/"`.
+
+  - `opath`: Returns a string containing the request's original path (see `path`). This allows request routing to update the `path` property to remove any path prefixes (replacing an empty string with `"/"`).
 
   - `query`: Returns a string containing the request's query (the portion of the request URL that follows the `?`, if any; e.g., `/user?id=0` results in `id=0`). This **MAY** return either `nil` or an empty string when no query is present.
 
@@ -363,3 +367,26 @@ end
 Middleware **MAY** stop the request from reaching the application by calling either `e.finish` or `e.close` before the next middleware or the application is called.
 
 Middleware **SHOULD NOT** replace the `event` object with a new `event` object. Although this would allow the middleware to control the application's behavior, it might cause unpredictable results.
+
+## NeoRack DSL
+
+When implementing a CLI for the NeoRack Server, it is expected (but not required) that servers expect the default application file named `config.nru` and implement the following DSL for that file:
+
+```ruby
+module DLS
+  # uses specified Middleware class.
+  def use(middleware, *args, &block) ; end
+  # Maps a URL path to a specific NeoRack Application
+  #
+  # Accepts an optional block to run within the scope of the path.
+  #
+  # Calls to `map` may be nested.
+  #
+  # If `handler` isn't provided, than `block` should call `run` to set handler.
+  #
+  # Request routing SHOULD update the event's `path` property to remove any consumed path prefixes (while still avoiding an empty path string).
+  def map(path, handler = nil, &block) ; end
+  # Sets NeoRack application for the server to run. When supporting classical Rack, `block` may be accepted as a Rack application. 
+  def run(handler = nil, &block) ; end
+end
+```
