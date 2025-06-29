@@ -10,6 +10,23 @@ NeoRack Servers supporting this extension **MUST** set this in their `extensions
 
 ```ruby
 Server.extensions[:ws] = [0,0,1]
+
+module NeoRackApp
+    def on_authenticate_websocket(e)    ; end
+    def on_open(e)                      ; end
+    def on_message(e, msg)              ; end
+    def on_close(e)                     ; end
+    def on_shutdown(e)                  ; end
+    def on_drained(e)                   ; end
+end
+
+class Server::Event
+    def websocket?                 ; end
+    def open?                      ; end
+    def close                      ; end
+    def write(data)                ; end
+    def pending                    ; end
+end
 ```
 
 ## NeoRack WebSocket Applications

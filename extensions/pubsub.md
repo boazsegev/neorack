@@ -10,6 +10,24 @@ NeoRack Servers supporting this extension **MUST** set this in their `extensions
 
 ```ruby
 Server.extensions[:pubsub] = [0,0,1]
+
+class Server
+    def self.subscribe(named_channel, opt = {}, &block) ; end
+    def self.publish(named_channel, message, opt = {})  ; end
+end
+
+class Server::Event
+    def subscribe(named_channel, opt = {}, &block) ; end
+    def publish(named_channel, message, opt = {})  ; end
+end
+
+class PubSub::Message
+    attr_accessor :id
+    attr_accessor :channel
+    attr_accessor :message
+    attr_accessor :published
+    def to_s ; message.to_s ; end
+end
 ```
 
 ## NeoRack Servers

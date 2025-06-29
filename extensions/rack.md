@@ -2,6 +2,29 @@
 
 NeoRack backward compatibility with the [CGI-style Rack specifications](https://github.com/rack/rack/blob/master/SPEC.rdoc) is considered an extension and uses the reserved extension name `:rack`.
 
+```ruby
+Server.extensions[:rack] = [1, 3, 0]
+
+class Server
+    class RackWrapper
+      def initialize(app); @app = app; end
+      def on_http(e) ; end
+    end
+
+    RACK_LISTEN_OLD = self.method(:listen)
+
+    def self.listen(*args, &block)
+      args[1] = RackWrapper.new(args[1])
+      RACK_LISTEN_OLD.call(*args, &block)
+    end
+end
+
+class Server::Event
+    def env ; end
+    def rack_hijack ; end
+end
+```
+
 Implementations **MUST**:
 
 - Set the server's `extensions[:rack]` value to the Rack specification version they support (e.g., `[1, 3, 0].freeze`).

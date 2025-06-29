@@ -10,6 +10,12 @@ NeoRack Servers supporting this extension **MUST** set this in their `extensions
 
 ```ruby
 Server.extensions[:cookies] = [0,0,1]
+
+class Server::Event
+  def cookie(name); end
+  def each_cookie(&block); end
+  def set_cookie(name, value = nil, max_age = 0, domain = nil, path = nil, same_site = nil, secure = false, http_only = false, partitioned = false); end
+end
 ```
 
 ## NeoRack Event Instance

@@ -10,6 +10,37 @@ NeoRack Servers supporting this extension **MUST** set this in their `extensions
 
 ```ruby
 Server.extensions[:sse] = [0,0,1]
+
+module NeoRackApp
+    def on_authenticate_sse(e)          ; end
+    def on_open(e)                      ; end
+    def on_eventsource_reconnect(e, id) ; end
+    def on_message(e, msg)              ; end # optional
+    def on_close(e)                     ; end
+    def on_shutdown(e)                  ; end
+    def on_drained(e)                   ; end
+end
+
+class Server::Event
+    def sse?                       ; end
+    def open?                      ; end
+    def close                      ; end
+    def write(data)                ; end
+    def write_sse(id, event, data) ; end
+    def pending                    ; end
+end
+
+class SSE::Message
+    attr_accessor :id
+    attr_accessor :channel
+    attr_accessor :message
+
+    def to_s ; message.to_s ; end
+
+    alias :data  :message
+    alias :event :channel
+
+end
 ```
 
 ## NeoRack SSE Applications
@@ -22,7 +53,7 @@ A NeoRack Applications that supports this extension **SHOULD** responds to the f
 
 * `on_eventsource_reconnect(e, id)` - called when a client reconnects. `id` is the last message the client reports as received.
 
-* `on_message(e, msg)` - called when a message is received. `msg` will be an Object instance that allows the following properties to be fully accessed: `id` (the event ID); `event` (the channel / event); `data` (the SSE payload).
+* `on_message(e, msg)` - optional, as servers don't normally receive SSE messages. Called when a message is received. `msg` will be an Object instance that allows the following properties to be fully accessed: `id` (the event ID); `event` (the channel / event); `data` (the SSE payload).
 
 * `on_close(e)` - called when the SSE connection is closed.
 

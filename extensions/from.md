@@ -10,6 +10,10 @@ NeoRack Servers supporting this extension **MUST** set this in their `extensions
 
 ```ruby
 Server.extensions[:from] = [0,0,1]
+
+class Server::Event
+    def from ; end
+end
 ```
 
 ## NeoRack Event Instance

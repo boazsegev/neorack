@@ -6,6 +6,18 @@ This specification lists the requirements for NeoRack-compatible **Servers**, **
 
 ## NeoRack Applications
 
+```ruby
+# A NeoRack application, including all possible core callbacks.
+module EXAMPLE_APP
+  # Called for every HTTP request
+  def self.on_http(e) ; end
+
+  # Called after `on_http` (or after `on_closed` if WebSocket/SSE extensions are supported)
+  def self.on_finish(e) ; end
+end
+
+```
+
 A NeoRack application is a Ruby object, singleton class, or module.
 
 A NeoRack application **MUST** respond to the `on_http` method. The `on_http` method **MUST** take exactly one argument, `event` (herein: `e`), as defined in this specification.
@@ -18,58 +30,6 @@ A NeoRack application **MUST** call `e.finish` for every event (`e`) forwarded t
 
 **Note:** NeoRack applications **SHOULD** be thread-safe and assume that the `on_http` method might be called concurrently from different threads or processes. To improve thread safety, NeoRack applications **SHOULD NOT** use global mutable variables or application instance variables and **SHOULD** limit any mutable state storage to the key-value store in the event object (`e`) and/or a separate, thread-safe module.
 
-
-### Example NeoRack Application
-
-```ruby
-# The default response for the sample NeoRack application
-DEFAULT_RESPONSE = "Hello, World!".freeze
-
-# A NeoRack application, including all possible core callbacks.
-module EXAMPLE_APP
-  # Called for every HTTP request
-  def self.on_http(e)
-    e.finish(DEFAULT_RESPONSE)
-  end
-
-  # Called after `on_http` (or after `on_closed` if WebSocket/SSE extensions are supported)
-  def self.on_finish(e)
-    # Clean up any data stored in the `e` object
-  end
-end
-
-Server.listen nil, EXAMPLE_APP
-Server.start
-```
-
-### Example `config.nru`
-
-Similar to Rack, NeoRack servers **SHOULD** support `.ru` and `.nru` configuration files. These files use a similar DSL approach to Rack, with a focus on compatibility where feasible.
-
-The required NeoRack DSL is limited to the `use` and `run` methods, where `use` adds middleware and `run` sets the application and starts the server.
-
-The optional NeoRack DSL method `map` **SHOULD** be implemented where possible, even if routing implementations differ in resulting routing logic. The `map` method should accept both a `url` to map to and an optional `handler` (as well as an optional block).
-
-This design allows servers to support both NeoRack and Rack applications simultaneously.
-
-```ruby
-# A default response for the sample NeoRack application
-DEFAULT_RESPONSE = "Hello, World!".freeze
-
-# A NeoRack application, including all possible core callbacks.
-module EXAMPLE_APP
-  def self.on_http(e)
-    e.finish(DEFAULT_RESPONSE)
-  end
-
-  def self.on_finish(e)
-    puts "#{Process.pid}: finished processing the HTTP request."
-  end
-end
-
-run EXAMPLE_APP
-```
-
 ## NeoRack Servers
 
 NeoRack servers **MUST** support this specification and **MAY** support any extensions they see fit.
@@ -77,6 +37,25 @@ NeoRack servers **MUST** support this specification and **MAY** support any exte
 NeoRack servers **MUST** support at least one NeoRack application per server instance and **MAY** support multiple applications concurrently (e.g., by listening to multiple sockets or implementing a routing layer).
 
 ## The `Server` Object
+
+```ruby
+module Server
+  def extensions; @extensions ||= { neo_rack: [0, 0, 2] } ; end
+
+  def self.listen(url, handler); end
+
+  def self.on_state(state, &block); end
+
+  attr_accessor :threads, :workers
+
+  def self.start(); end
+  def self.stop(); end
+
+  def self.master?(); end
+  def self.worker?(); end
+  def self.running?(); end
+end
+```
 
 NeoRack servers **MUST** map the `Server` constant to the module or class implementing the required NeoRack API. If the `Server` constant is already defined (e.g., due to another NeoRack server being loaded), the server **MAY** choose to overwrite the constant.
 
@@ -158,6 +137,40 @@ NeoRack servers **MUST** map the `Server::Event` constant to the class implement
 
 **Note:** Overwriting the `Server::Event` constant with another constant **SHOULD NOT** change the server's behavior. This is because the server only maps its own internal class to the public constant, making it possible to add functionality to its internal class (not overwriting it).
 
+```ruby
+class Event
+  attr_accessor :handler
+
+  attr_accessor :method
+  attr_accessor :path
+  attr_accessor :opath
+  attr_accessor :query
+  attr_accessor :version
+
+  attr_accessor :env
+
+  def headers; self; end
+  def [](key); end
+  def []=(key, value); end
+  def each(&block); end
+
+  def headers_sent?; end
+  def valid?; end
+
+  attr_accessor :status
+  def write_headers(name, values); end
+  def write(data); end
+  def finish(data = nil); end
+
+  # HTTP Body / Payload
+
+  attr_accessor :length
+  def gets(limit = nil); end
+  def read(maxlen = nil, out_string = nil); end
+  def seek(pos = nil); end
+
+end
+```
 
 ## The `event` Instance Object (herein `e`)
 
@@ -224,7 +237,7 @@ An `event` instance object **MAY** inherit from any class (e.g., `Hash` may be a
   end
   ```
 
-- The following attribute accessors (as if declared using `attr_accessor`): `path`, `opath`, `query`, `method`, `scheme`, and `status` — all initially set to `nil` unless otherwise specified or previously set.
+- The following attribute accessors (as if declared using `attr_accessor`): `path`, `opath`, `query`, `method`, and `status` — all initially set to `nil` unless otherwise specified or previously set.
 
   - `path`: Returns a string containing the request's path (e.g., `/user?id=0` results in `/user`). This **MUST NOT** be an empty string. An empty string **MUST** be replaced with `"/"`.
 
@@ -233,8 +246,6 @@ An `event` instance object **MAY** inherit from any class (e.g., `Hash` may be a
   - `query`: Returns a string containing the request's query (the portion of the request URL that follows the `?`, if any; e.g., `/user?id=0` results in `id=0`). This **MAY** return either `nil` or an empty string when no query is present.
 
   - `method`: Returns a string containing the HTTP method used, e.g., `"GET"` or `"POST"`. This **MUST NOT** be an empty string.
-
-  - `scheme`: Returns a string containing the HTTP scheme (`"http"` or `"https"`). This value **MUST** be `nil` if the scheme is unknown.
 
   - `length`: Returns the total number of bytes in the HTTP request body (payload); returns `0` if no request body/payload was received.
 
@@ -374,19 +385,70 @@ When implementing a CLI for the NeoRack Server, it is expected (but not required
 
 ```ruby
 module DLS
-  # uses specified Middleware class.
   def use(middleware, *args, &block) ; end
-  # Maps a URL path to a specific NeoRack Application
-  #
-  # Accepts an optional block to run within the scope of the path.
-  #
-  # Calls to `map` may be nested.
-  #
-  # If `handler` isn't provided, than `block` should call `run` to set handler.
-  #
-  # Request routing SHOULD update the event's `path` property to remove any consumed path prefixes (while still avoiding an empty path string).
-  def map(path, handler = nil, &block) ; end
-  # Sets NeoRack application for the server to run. When supporting classical Rack, `block` may be accepted as a Rack application. 
+  def map(path = nil, handler = nil, &block) ; end
   def run(handler = nil, &block) ; end
 end
 ```
+### DSL Methods
+
+#### `use`
+
+Adds Middleware to the application stack.
+
+#### `run`
+
+Sets NeoRack application for the server to run.
+
+When supporting classical Rack, `block` may act as an handler. Otherwise, `block` **SHOULD** raise an exception.
+
+#### `map`
+
+Maps a URL path to a specific NeoRack Application.
+
+Accepts an optional block to run within the scope of the path (where `use` and `run` **MAY** be called).
+
+Calls to `map`  **MAY** be nested.
+
+Request routing **SHOULD** update the event's `path` property, removing any consumed path prefixes.
+
+If `handler` is `nil` and no `block` is provided, `map` should return the handler that would have been used if `path` was passed to the router.
+
+**Note**:
+
+- `map`, when implemented, **SHOULD** only test for path prefixes. i.e, the path `'user'` should match: `/user`, `/user/`, `/user/...`. This **SHOULD NOT** attempt to provide a sophisticated routing solution (i.e., `'/user/(:id)'`).
+
+- `map` **SHOULD** behave the same when faced with paths with or without the `'/'` prefix / postfix. i.e., the following should behave the same: `'/user/'`, `'user'`, `'/user'` or `'user/'`.
+
+- If `path` is `nil`, it should be treated the same as the root path `'/'` (the default / fallback handler would be set / returned).
+
+- `map` **SHOULD** be case sensitive.
+
+- When `use` is called inside a `map` block, it should only affect the middleware chain related to that specific path.
+
+### Example `config.nru`
+
+```ruby
+# A default response for the sample NeoRack application
+DEFAULT_RESPONSE = "Hello, World!".freeze
+
+# A NeoRack application, including all possible core callbacks.
+module ExampleApp
+  def self.on_http(e)
+    e.finish(DEFAULT_RESPONSE)
+  end
+
+  def self.on_finish(e)
+    puts "#{Process.pid}: finished processing the HTTP request."
+  end
+end
+
+module NestedApp
+  def self.on_http(e)
+    e.finish("NeoRack took us here, with path: #{e.path}")
+  end
+end
+map('secret', NestedApp)
+run ExampleApp
+```
+
