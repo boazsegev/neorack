@@ -4,10 +4,6 @@ The cookies extension for NeoRack is designed to allow Neo-Rack application to e
 
 This is an extension to the NeoRack specification and is in addition to the core features that **MUST** be implemented according to the NeoRack specification.
 
-## Name and Version
-
-NeoRack Servers supporting this extension **MUST** set this in their `extensions` Hash Map:
-
 ```ruby
 Server.extensions[:cookies] = [0,0,1]
 
@@ -17,6 +13,10 @@ class Server::Event
   def set_cookie(name, value = nil, max_age = 0, domain = nil, path = nil, same_site = nil, secure = false, http_only = false, partitioned = false); end
 end
 ```
+
+## Name and Version
+
+NeoRack Servers supporting this extension **MUST** set the correct value in their `extensions` Hash Map, as shown above.
 
 ## NeoRack Event Instance
 

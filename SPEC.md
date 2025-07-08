@@ -42,7 +42,7 @@ NeoRack servers **MUST** support at least one NeoRack application per server ins
 module Server
   def extensions; @extensions ||= { neo_rack: [0, 0, 2] } ; end
 
-  def self.listen(url, handler); end
+  def self.listen(url, handler); end # return listener object
 
   def self.on_state(state, &block); end
 
@@ -404,13 +404,13 @@ When supporting classical Rack, `block` may act as an handler. Otherwise, `block
 
 #### `map`
 
-Maps a URL path to a specific NeoRack Application.
+Maps a URL path prefix to a specific NeoRack Application.
 
 Accepts an optional block to run within the scope of the path (where `use` and `run` **MAY** be called).
 
 Calls to `map`  **MAY** be nested.
 
-Request routing **SHOULD** update the event's `path` property, removing any consumed path prefixes.
+Request routing **MUST** update the event's `path` property, removing any consumed path prefixes.
 
 If `handler` is `nil` and no `block` is provided, `map` should return the handler that would have been used if `path` was passed to the router.
 
@@ -420,7 +420,7 @@ If `handler` is `nil` and no `block` is provided, `map` should return the handle
 
 - `map` **SHOULD** behave the same when faced with paths with or without the `'/'` prefix / postfix. i.e., the following should behave the same: `'/user/'`, `'user'`, `'/user'` or `'user/'`.
 
-- If `path` is `nil`, it should be treated the same as the root path `'/'` (the default / fallback handler would be set / returned).
+- If map's `path` is `nil`, it should be treated the same as the root path `'/'` (the default / fallback handler would be set / returned).
 
 - `map` **SHOULD** be case sensitive.
 

@@ -5,7 +5,7 @@ NeoRack backward compatibility with the [CGI-style Rack specifications](https://
 ```ruby
 Server.extensions[:rack] = [1, 3, 0]
 
-class Server
+Server.instance_eval do
     class RackWrapper
       def initialize(app); @app = app; end
       def on_http(e) ; end
@@ -13,7 +13,7 @@ class Server
 
     RACK_LISTEN_OLD = self.method(:listen)
 
-    def self.listen(*args, &block)
+    def listen(*args, &block)
       args[1] = RackWrapper.new(args[1])
       RACK_LISTEN_OLD.call(*args, &block)
     end

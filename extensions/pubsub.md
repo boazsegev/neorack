@@ -4,16 +4,12 @@ The pub/sub extension for NeoRack is designed to allow Neo-Rack connections to s
 
 This is an extension to the NeoRack specification and is in addition to the core features that **MUST** be implemented according to the NeoRack specification.
 
-## Name and Version
-
-NeoRack Servers supporting this extension **MUST** set this in their `extensions` Hash Map:
-
 ```ruby
 Server.extensions[:pubsub] = [0,0,1]
 
-class Server
-    def self.subscribe(named_channel, opt = {}, &block) ; end
-    def self.publish(named_channel, message, opt = {})  ; end
+Server.instance_eval do
+    def subscribe(named_channel, opt = {}, &block) ; end
+    def publish(named_channel, message, opt = {})  ; end
 end
 
 class Server::Event
@@ -29,6 +25,9 @@ class PubSub::Message
     def to_s ; message.to_s ; end
 end
 ```
+## Name and Version
+
+NeoRack Servers supporting this extension **MUST** set the correct value in their `extensions` Hash Map, as shown above.
 
 ## NeoRack Servers
 
