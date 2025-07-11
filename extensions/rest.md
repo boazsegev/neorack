@@ -10,8 +10,8 @@ Server.instance_eval do
 end
 
 module DLS
-  def neorack_resource(handler)
-    Server.make_resource(handler)
+  def neorack_resource(*ha)
+    ha.each {|handler| Server.make_resource(handler) }
   end
 end
 
@@ -76,7 +76,7 @@ The method should add an implementation for `on_http` that will route each reque
 
 A NeoRack Server implementing a DSL (for `config.nru` / `config.ru` files) **MUST** support the `neorack_resource` method if supporting this extension.
 
-`neorack_resource` **MUST** call the Server's `neorack_resource` method on the handler it receives.
+`neorack_resource` **MUST** call the Server's `neorack_resource` method on each handler object it receives.
 
 ### Mock Approach
 
@@ -126,8 +126,8 @@ Server.instance_eval do
 end
 
 module DLS
-  def neorack_resource handler
-    Server.make_resource(handler)
+  def neorack_resource *ha
+    ha.each {|handler| Server.make_resource(handler) }
   end
 end
 
