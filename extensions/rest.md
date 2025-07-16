@@ -97,20 +97,25 @@ Server.instance_eval do
       # routing logic here.
       name = nil
       if(e.method.downcase == 'get')
-        if e.path == '/new'
-        name = :new
+        if (e.path.length == 4 && e.path == '/new') ||
+          e.path.start_with?('/new/')
+          name = :new
+        elsif e.path.end_with?('/edit') || e.path.end_with?('/edit/')
+          name = :edit
         elsif e.path.length > 1
-        name = :show
+          name = :show
         else
-        name = :index
+          name = :index
         end
       elsif (e.method.downcase == 'put'  ||
              e.method.downcase == 'post' ||
              e.method.downcase == 'patch')
-        if e.path == '/new' || e.path.length < 2
-        name = :create
+        if e.path.length < 2 ||
+          (e.path.length == 4 && e.path == '/new') ||
+          e.path.start_with?('/new/')
+          name = :create
         else
-        name = :update
+          name = :update
         end
       elsif (e.method.downcase == 'delete')
         name = :delete
