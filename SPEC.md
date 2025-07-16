@@ -384,13 +384,13 @@ Middleware **SHOULD NOT** replace the `event` object with a new `event` object. 
 When implementing a CLI for the NeoRack Server, it is expected (but not required) that servers expect the default application file named `config.nru` and implement the following DSL for that file:
 
 ```ruby
-module DLS
+module Server::DLS
   def use(middleware, *args, &block) ; end
   def map(path = nil, handler = nil, &block) ; end
   def run(handler = nil, &block) ; end
 end
 ```
-### DSL Methods
+### `Server::DSL` Methods
 
 #### `use`
 
