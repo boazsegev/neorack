@@ -1,29 +1,34 @@
 # From Extension
 
-The from extension for NeoRack is designed to allow NeoRack application to easily discover the source address from which the request claims to have been sent.
+Extension for discovering the claimed source address of a request (proxy-aware).
 
-This is an extension to the NeoRack specification and is in addition to the core features that **MUST** be implemented according to the NeoRack specification.
+The following is the **normative specification**:
 
 ```ruby
-Server.extensions[:from] = [0,0,1]
+Server.extensions[:from] = [0, 0, 2]
 
 class Server::Event
-    def from ; end
+  # Returns the claimed source address of the request.
+  # @return [String, nil] IP address string (IPv4 or IPv6, without brackets or port)
+  # Resolution order (MUST follow):
+  #   1. `for` property in `Forwarded` header (RFC 7239)
+  #   2. Leftmost address in `X-Forwarded-For` header (original client IP)
+  #      e.g., "X-Forwarded-For: client, proxy1, proxy2" → return "client"
+  #   3. e.peer_addr (direct connection)
+  # MUST strip IPv6 brackets and port if present (e.g., "[::1]:8080" -> "::1")
+  # SHOULD return nil if header value is malformed
+  def from; end
 end
 ```
 
-## Name and Version
+## Security Considerations
 
-NeoRack Servers supporting this extension **MUST** set the correct value in their `extensions` Hash Map, as shown above.
+**WARNING**: The `Forwarded` and `X-Forwarded-For` headers can be spoofed by clients.
 
-## NeoRack Event Instance
+| Risk | Mitigation |
+|------|------------|
+| IP spoofing | Applications MUST NOT trust `from` for security decisions unless behind a trusted proxy |
+| Header injection | Servers SHOULD validate header format before parsing |
+| Trusted proxies | Applications SHOULD configure trusted proxy IPs and only trust forwarded headers from those sources |
 
-A NeoRack Server `event` instance object (herein `e`) that supports this extension **MUST** responds to the following methods:
-
-* `e.from()` - returns a String with the value of the address from which the request claims to have been sent.
-
-    Servers **SHOULD** return the value of the `for` property in the `forwarded` header.
-
-    If the `forwarded` header is missing, Servers **SHOULD** return the first address in the `x-forwarded-for` header.
-
-    If the `forwarded` and the `x-forwarded-for` headers are both missing, Servers **SHOULD** return the return value of `e.peer_addr`.
+For security-sensitive use cases (rate limiting, access control), applications SHOULD use `e.peer_addr` directly or implement trusted proxy validation.

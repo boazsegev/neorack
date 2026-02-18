@@ -1,112 +1,112 @@
-# Server Source Events (Event Source) Extension
+# Server-Sent Events (SSE) Extension
 
-The SSE extension for NeoRack is designed to allow Neo-Rack applications to handle SSE connections.
+Extends NeoRack to handle SSE (EventSource) connections.
 
-This is an extension to the NeoRack specification and is in addition to the core features that **MUST** be implemented according to the NeoRack specification.
-
-## Name and Version
-
-NeoRack Servers supporting this extension **MUST** set this in their `extensions` Hash Map:
+## Extension Registration
 
 ```ruby
-Server.extensions[:sse] = [0,0,1]
+Server.extensions[:sse] = [0, 0, 2]
+```
 
+## Application Callbacks
+
+```ruby
+# SSE application callbacks. Apps SHOULD respond to these methods.
 module NeoRackApp
-    def on_authenticate_sse(e)          ; end
-    def on_open(e)                      ; end
-    def on_eventsource_reconnect(e, id) ; end
-    def on_message(e, msg)              ; end # optional
-    def on_close(e)                     ; end
-    def on_shutdown(e)                  ; end
-    def on_drained(e)                   ; end
-end
+  # Called INSTEAD of on_http for SSE requests.
+  # MUST return true to allow connection; any other value refuses.
+  # Fallback: if missing, Servers MUST call on_authenticate instead.
+  #   If both missing, MUST return true ONLY IF app responds to on_open.
+  def on_authenticate_sse(e); end
 
-class Server::Event
-    def sse?                       ; end
-    def open?                      ; end
-    def close                      ; end
-    def write(data)                ; end
-    def write_sse(id, event, data) ; end
-    def pending                    ; end
-end
+  # Called when SSE connection is established (new connection).
+  # MUST be called before any on_message callbacks.
+  # NOTE: Mutually exclusive with on_eventsource_reconnect - only ONE is called.
+  def on_open(e); end
 
-class SSE::Message
-    attr_accessor :id
-    attr_accessor :channel
-    attr_accessor :message
+  # Called INSTEAD of on_open when client reconnects with Last-Event-ID header.
+  # @param id [String] last message ID the client received
+  # NOTE: Mutually exclusive with on_open - only ONE is called per connection.
+  def on_eventsource_reconnect(e, id); end
 
-    def to_s ; message.to_s ; end
+  # (OPTIONAL) Called when message received from client.
+  # NOTE: SSE clients normally don't send messages (violates HTTP protocol).
+  # @param msg [SSE::Message] object with id, event, data properties
+  def on_message(e, msg); end
 
-    alias :data  :message
-    alias :event :channel
+  # Called when SSE connection is closed.
+  def on_close(e); end
 
+  # (OPTIONAL) Called when process starts shutting down.
+  # Servers MAY ignore this callback.
+  def on_shutdown(e); end
+
+  # (OPTIONAL) Called when outgoing buffer is empty.
+  # Servers MAY ignore this callback.
+  def on_drained(e); end
 end
 ```
 
-## NeoRack SSE Applications
+### on_finish Timing
 
-A NeoRack Applications that supports this extension **SHOULD** responds to the following methods:
+| Rule | Requirement |
+|------|-------------|
+| Guaranteed call | Servers MUST ALWAYS call on_finish |
+| After auth failure | MUST call on_finish after failed authentication |
+| After close | MUST call on_finish after on_close |
+| After upgrade | SHOULD NOT call on_finish immediately after successful upgrade |
 
-* `on_authenticate_sse(e)` - called INSTEAD of the `on_http` method. This method **MUST** return `true` **IF** the connection is allowed to proceed. Any other return value will cause the connection to be refused.
+## Event Methods
 
-* `on_open(e)` - called when the SSE connection is established.
+```ruby
+class Server::Event
+  # @return [Boolean] true if this is an SSE connection
+  def sse?; end
 
-* `on_eventsource_reconnect(e, id)` - called when a client reconnects. `id` is the last message the client reports as received.
+  # @return [Boolean] true if connection appears open and close() not called
+  def open?; end
 
-* `on_message(e, msg)` - optional, as servers don't normally receive SSE messages. Called when a message is received. `msg` will be an Object instance that allows the following properties to be fully accessed: `id` (the event ID); `event` (the channel / event); `data` (the SSE payload).
+  # Schedules connection close after pending writes complete.
+  def close; end
 
-* `on_close(e)` - called when the SSE connection is closed.
+  # Writes raw data to connection.
+  # @param data [String, IO, Object]
+  #   String -> SHOULD be UTF-8 encoded
+  #   IO     -> Server MUST close it, then return false (SSE rejects IO)
+  #   Other  -> Server MAY convert to JSON
+  # @return [Boolean] true if accepted, false if connection closed
+  # SHOULD return false (not raise) on failure. MAY raise exception.
+  # NOTE: Shared with HTTP/WebSocket; servers MUST handle based on connection type.
+  def write(data); end
 
-* `on_shutdown(e)` - called when the process to which this connection belongs starts shutting down (i.e., during hot restart or server shutdown). NeoRack Servers **MAY** choose to ignore this callback.
+  # Writes SSE-formatted event to connection.
+  # @param data [String] event payload (UTF-8) - required
+  # @param id [String, nil] event ID (UTF-8); nil to omit
+  # @param event [String, nil] event type/channel (UTF-8); nil to omit
+  # @return [Boolean] same semantics as write()
+  # Formats data per EventSource spec (id:, event:, data: fields).
+  def write_sse(data, id: nil, event: nil); end
 
-* `on_drained(e)` - called when all calls to `e.write` have been handled and the outgoing buffer is now empty. NeoRack Servers **MAY** choose to ignore this callback.
+  # @return [Integer, Boolean]
+  #   Integer -> bytes pending before next on_drained
+  #   true    -> buffer not empty (if count unavailable)
+  #   false   -> buffer empty OR server never calls on_drained
+  def pending; end
+end
+```
 
-IF `on_authenticate_sse` is missing, Servers **MUST** provide a default implementation that calls `on_authenticate` instead. If `on_authenticate` too is missing, Servers **MUST** provide a default implementation that returns `true` **ONLY IF** the application responds to `on_open`.
+## SSE Message Object
 
-### The `on_finish` callback timing
+```ruby
+# Message object passed to on_message callback.
+class SSE::Message
+  attr_accessor :id       # Event ID
+  attr_accessor :channel  # Event type (alias: event)
+  attr_accessor :message  # Payload (alias: data)
 
-`on_finish` **MUST ALWAYS** be called by NeoRack Servers, or else cleanup may be too difficult to reason about.
+  def to_s; message.to_s; end
 
-When implementing this extension, NeoRack Servers **MUST** call `on_finish` after either a failed client authentication or after calling `on_close`.
-
-Cleanup is at the end.
-
-## The `event` Instance Object (herein `e`)
-
-The following methods MUST be implemented by the `event` instance object:
-
-* `e.sse?` - returns `true` if the connection is an Event Source (SSE) connection.
-
-* `e.open?` - returns `true` if the connection appears to be open and `close` hadn't been called (no known issues).
-
-* `e.close` - schedules the connection to be closed once all calls to `e.write` had finished.
-
-* `e.write(data)` - writes data to the connection or the connection's buffer.
-
-    In general, `data` **SHOULD** be a UTF-8 encoded String.
-
-    If `data` is NOT a String, the server **MAY** attempt to convert it to a JSON String, allowing Hashes, Arrays and other native Ruby objects to be sent over the wire.
-
-    If `data` is an `IO` object the Server **MUST** close it before rejecting it and returning `false`.
-
-    `e.write` **MUST** return `true` if the data was written to the connection or the connection's buffer. `e.write` **SHOULD** return `false` if the data was not written (i.e., the connection is closed and writing is impossible), but **MAY** also throw an exception.
-
-    **Note**: `e.write` is shared between HTTP, WebSocket and SSE connections. Servers **MUST** ensure that the `data` argument is handled correctly based on the connection type.
-
-    **Note**: SSE clients **SHOULD NOT** be able to `write`, as this violates the HTTP protocol. However, abusing the HTTP protocol could be beneficial, so... :) ... the specification doesn't really care.
-
-* `e.write_sse(id, event, data)` - allows the writing of data in SSE specific format.
-    
-    The `id` and `event` **MUST** be a UTF-8 encoded String (or `nil`). `data` be a UTF-8 encoded String.
-
-    This method **SHOULD** behave the same as `e.write`, only with the addition of `id` and `event` name information passed along to the SSE client according to the Event Source specification.
-
-* `e.pending` - **SHOULD** return the number of bytes that need to be sent before the next `on_drained` callback is called. **MAY** return `true` instead of a number, if the outgoing buffer isn't empty. **Must** return `false` if the outgoing buffer is empty **OR** if the Server never calls `on_drained`.
-
-## The Upgrade Process
-
-When a successful connection upgrade had occurred, the `on_open` callback **MUST** be called before any `on_message` callbacks.
-
-The HTTP `on_finish` callback should **NOT** be called by the Server after a successful upgrade. Instead, the Application **MAY** choose to call `e.handler.on_finish(e)`. This allows the Application to handle the HTTP request as it sees fit.
-
-
+  alias data message
+  alias event channel
+end
+```

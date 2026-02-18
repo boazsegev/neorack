@@ -1,82 +1,77 @@
 # Pub/Sub Extension
 
-The pub/sub extension for NeoRack is designed to allow Neo-Rack connections to subscribe and publish to an event stream.
+Extends NeoRack to enable publish/subscribe messaging across connections and processes.
 
-This is an extension to the NeoRack specification and is in addition to the core features that **MUST** be implemented according to the NeoRack specification.
+## Extension Registration
 
 ```ruby
-Server.extensions[:pubsub] = [0,0,1]
+Server.extensions[:pubsub] = [0, 0, 2]
+```
 
-Server.instance_eval do
-    def subscribe(named_channel, opt = {}, &block) ; end
-    def publish(named_channel, message, opt = {})  ; end
-end
+## Server Methods
 
-class Server::Event
-    def subscribe(named_channel, opt = {}, &block) ; end
-    def publish(named_channel, message, opt = {})  ; end
-end
+```ruby
+module Server
+  # Subscribes to a named channel.
+  # @param channel [String] channel name; MAY be binary, MAY include NUL
+  # @param options [Hash] implementation-specific options (e.g., :since for buffering)
+  # @param block [Proc] called with PubSub::Message on each published message
+  #   MAY accept handler object with call(msg) instead of block
+  def self.subscribe(channel, options = {}, &block); end
 
-class PubSub::Message
-    attr_accessor :id
-    attr_accessor :channel
-    attr_accessor :message
-    attr_accessor :published
-    def to_s ; message.to_s ; end
+  # Unsubscribes a handler from a named channel.
+  # @param channel [String] channel name
+  # @return [Boolean] true if was unsubscribed and removed, false otherwise
+  def self.unsubscribe(channel); end
+
+  # Publishes message to all subscribers on the named channel.
+  # @param channel [String] channel name; MAY be binary, MAY include NUL
+  # @param message [String] payload; MAY be binary, MAY include NUL
+  # @param options [Hash] implementation-specific options
+  # MUST publish to all subscribers across ALL worker processes.
+  def self.publish(channel, message, options = {}); end
 end
 ```
-## Name and Version
 
-NeoRack Servers supporting this extension **MUST** set the correct value in their `extensions` Hash Map, as shown above.
+## Event Methods
 
-## NeoRack Servers
+```ruby
+class Server::Event
+  # Subscribes this connection to a named channel.
+  # @param channel [String] channel name (see Server.subscribe)
+  # @param options [Hash] implementation-specific options
+  # @param block [Proc, nil] message handler; if nil, uses default behavior:
+  #   Default: calls e.write(msg.to_s) for each message
+  #   Default SHOULD include channel name as metadata when connection supports it
+  #   (e.g., SSE events with UTF-8 valid channel names)
+  def subscribe(channel, options = {}, &block); end
 
-A NeoRack Server that supports this extension **MUST** responds to the following methods:
+  # Unsubscribes this connection from a named channel.
+  # @param channel [String] channel name
+  # @return [Boolean] true if was unsubscribed and removed, false otherwise
+  def unsubscribe(channel); end
 
-* `Server.subscribe(named_channel, opt = {}, &block)` - subscribes to a named channel.
+  # Publishes message to named channel.
+  # @param channel [String] channel name
+  # @param message [String] payload
+  # @param options [Hash] implementation-specific options
+  # MUST publish to all subscribers EXCEPT the publishing connection.
+  def publish(channel, message, options = {}); end
+end
+```
 
-    Named channels **MAY** be binary and **MAY** include the `NUL` character.
+## Message Object
 
-    The `block` respond to a `call` method that accepts a pub/sub message object as its only argument.
+```ruby
+# Message object passed to subscription callbacks.
+class PubSub::Message
+  attr_accessor :id        # Event ID (implementation-defined, MAY be nil)
+  attr_accessor :channel   # Channel name - UTF-8 for text, otherwise binary
+  attr_accessor :message   # Payload - UTF-8 for text, otherwise binary
+  attr_accessor :published # [Integer, nil] Timestamp in ms since epoch (SHOULD be set, MAY be nil)
 
-    Instead of `block`, implementations **MAY** accept a second handler object that responds to a `call` method that accepts the message as the only argument.
+  def to_s; message.to_s; end
 
-    The `opt` Hash **MAY** include implementation-specific options.
-
-* `Server.publish(named_channel, message, opt = {})` - publishes `message` to the named channel. Messages **MAY** be binary and **MAY** include the `NUL` character.
-
-    `Server.publish` **MUST** publish the message to all subscribers.
-
-    **Note**: if the Server has more than a single worker process, the message **MUST** be published to all subscribers on all worker processes.
-
-    The `opt` Hash **MAY** include implementation-specific options.
-
-## NeoRack Event Instance
-
-A NeoRack Server `event` instance object (herein `e`) that supports this extension **MUST** responds to the following methods:
-
-* `e.subscribe(named_channel, opt = {}, &block = nil)` - subscribes to a named channel. See `Server.subscribe` for details.
-
-    `block` is optional. Servers **MUST** provide a default implementation that sends the published message payload as if `e.write` was called with `msg.to_s`.
-
-    The default implementation **SHOULD** send the channel name **ONLY IF** the connection allows this data to be sent as metadata (i.e., SSE events with UTF-8 valid channel names and payloads).
-
-* `e.publish(named_channel, message, opt = {})` - publishes `message` to the named channel. See `Server.subscribe` for publish.
-
-    `e.publish` **SHOULD** publish the message to all subscribers **EXCEPT** the one that published the message.
-
-## Pub/Sub Messages
-
-The pub/sub message object **MUST** respond to the following methods:
-
-* `id` - returns the event's `id` property. This is implementation defined and **MAY** be `nil`.
-
-* `channel` - returns the event's named `channel` property.
-
-* `message` - returns the event's `message` property (the payload).
-
-* `published` - **SHOULD** return the event's timestamp in milliseconds since epoch. This is implementation defined and **MAY** be `nil`.
-
-* `to_s` - (alias to `message`) eturns the event's `message` property (the payload).
-
-The pub/sub message object **MAY** respond to additional, implementation defined, methods.
+  # MAY respond to additional implementation-defined methods
+end
+```

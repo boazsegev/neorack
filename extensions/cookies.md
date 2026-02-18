@@ -1,55 +1,50 @@
 # Cookies Extension
 
-The cookies extension for NeoRack is designed to allow Neo-Rack application to easily access and set cookie data.
+Extension for cookie access and management in NeoRack applications.
 
-This is an extension to the NeoRack specification and is in addition to the core features that **MUST** be implemented according to the NeoRack specification.
+The following is the **normative specification**:
 
 ```ruby
-Server.extensions[:cookies] = [0,0,1]
+Server.extensions[:cookies] = [0, 0, 2]
 
 class Server::Event
+  # Returns the value of a cookie by name.
+  # @param name [String] cookie name (MUST be valid cookie-name per RFC 6265)
+  # @return [String, nil] ASCII-8BIT encoded value, or nil if not found
+  # Cookies set via set_cookie (that returned true) MUST be accessible here.
   def cookie(name); end
+
+  # Iterates over all cookies (received + successfully set).
+  # @yield [name, value] for each cookie
+  # @return [self]
+  # MUST include cookies set via set_cookie that returned true.
   def each_cookie(&block); end
-  def set_cookie(name, value = nil, max_age = 0, domain = nil, path = nil, same_site = nil, secure = false, http_only = false, partitioned = false); end
+
+  # Sets a cookie. Returns true on success, false if headers already sent.
+  # @param name [String] cookie name (MUST be valid cookie-name per RFC 6265)
+  # @param value [String, nil] cookie value; nil = delete cookie
+  # @param max_age [Integer, nil] seconds until expiry:
+  #     nil (or 0) = session cookie (deleted when browser closes)
+  #     N < 0      = delete cookie immediately (expires in past)
+  #     N > 0      = expire in N seconds
+  # @param domain [String, nil] cookie domain
+  # @param path [String, nil] cookie path
+  # @param same_site [Symbol, nil] MUST support: :none, :lax, :strict
+  #   nil = omit SameSite attribute (browser default, typically Lax)
+  # @param secure [Boolean] HTTPS only
+  # @param http_only [Boolean] inaccessible to JavaScript
+  # @param partitioned [Boolean] partitioned cookie (CHIPS)
+  # @return [Boolean] true on success, false if headers already sent
+  # Cookie MUST be accessible via cookie() method after successful set.
+  # SHOULD accept keyword arguments: set_cookie(name: "x", value: "y", max_age: 3600)
+  # Server SHOULD NOT modify name/value; if it does, MUST auto-reverse on read.
+  # See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
+  def set_cookie(name, value = nil, max_age = nil, domain = nil, path = nil,
+                 same_site = nil, secure = false, http_only = false,
+                 partitioned = false); end
 end
 ```
 
-## Name and Version
+## Implementation Notes
 
-NeoRack Servers supporting this extension **MUST** set the correct value in their `extensions` Hash Map, as shown above.
-
-## NeoRack Event Instance
-
-A NeoRack Server `event` instance object (herein `e`) that supports this extension **MUST** responds to the following methods:
-
-* `e.cookie(name)` - returns an ASCII-8 String with the value of the named cookie.
-
-    Cookies that were set using `set_cookie` should be made available if `e.set_cookie` returned `true`.
-
-* `e.set_cookie(name, value = nil, max_age = 0, domain = nil, path = nil, same_site = (:default || :none || :lax || :strict), secure = false, http_only = false, partitioned = false)` - sets the value of the named cookie and returns `true` upon success.
-
-    If `e.headers_sent?` returns `true`, calling this method **SHOULD** return `false` but **MAY** raise an exceptions.
-    
-    If `value` is `nil`, the cookie will be deleted.
-
-    If `max_age` is 0 (default), cookie will be session cookie and will be deleted by the browser at its discretion.
-
-    The `same_site` parameter **MUST** be either `nil` or a Symbol. The following Symbols **MUST** be supported: `:default`, `:none`, `:lax`, `:strict`. 
-    
-    This should behave similar to calling `write_header`, except that the cookie **MUST** be accessible when using the `e.cookie` method.
-
-    This method **SHOULD** accept named arguments, if possible. i.e.:
-
-    ```ruby
-    set_cookie(name: "MyCookie", value: "My non-secret data", domain: "localhost", max_age: 1_728_000)
-    set_cookie("MyCookie", "My non-secret data", domain: "localhost", max_age: 1_728_000)
-    ```
-
-    The Server **SHOULD NOT** (but **MAY**) change a cookie's name or value in any way necessary. If a Server does change a cookie's name or value (such as when implementing percent encoding), that change **MUST** be automatically reversed.
-    
-    For more details, see: [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
-
-* `e.each_cookie(&block)` - calls `block` for each name-value cookie pair received, as well as ones set by a call to `e.set_cookie` that returned `true`.
-
-
-When implementing this specification, developers **SHOULD** support all the features available for the [`Set-Cookie` header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie), even if not listed here and even if it would require additional arguments to the `set_cookie` method.
+Implementers **SHOULD** support all [`Set-Cookie`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie) features, adding parameters as needed.

@@ -1,54 +1,66 @@
-# NeoRack Compatibility with Rack
+# Rack Compatibility Extension
 
-NeoRack backward compatibility with the [CGI-style Rack specifications](https://github.com/rack/rack/blob/master/SPEC.rdoc) is considered an extension and uses the reserved extension name `:rack`.
+Backward compatibility with the [Rack specification](https://github.com/rack/rack/blob/master/SPEC.rdoc).
+
+The following is the **normative specification**:
 
 ```ruby
+# Version MUST match supported Rack spec version (e.g., [1, 3, 0] for Rack 1.3)
 Server.extensions[:rack] = [1, 3, 0]
 
+# Server MUST wrap Rack apps (those responding to call but not on_http) with adapter that:
+#   1. Calls app.call(env) when request received
+#   2. Handles Rack response [status, headers, body] per Rack spec
+#   3. Sends response via NeoRack event API
+#   4. Calls body.close if body responds to close
 Server.instance_eval do
-    class RackWrapper
-      def initialize(app); @app = app; end
-      def on_http(e) ; end
+  class RackWrapper
+    def initialize(app)
+      @app = app
     end
 
-    RACK_LISTEN_OLD = self.method(:listen)
-
-    def listen(*args, &block)
-      args[1] = RackWrapper.new(args[1])
-      RACK_LISTEN_OLD.call(*args, &block)
+    def on_http(e)
+      status, headers, body = @app.call(e.env)
+      e.status = status
+      headers.each { |k, v| e.write_header(k, v) }
+      body.each { |chunk| e.write(chunk) }
+      e.finish
+    ensure
+      body.close if body.respond_to?(:close)
     end
+  end
+
+  RACK_LISTEN_OLD = method(:listen)
+
+  def listen(url, handler, *args, &block)
+    # Only wrap if handler lacks on_http but has call (Rack app)
+    if !handler.respond_to?(:on_http) && handler.respond_to?(:call)
+      handler = RackWrapper.new(handler)
+    end
+    RACK_LISTEN_OLD.call(url, handler, *args, &block)
+  end
 end
 
 class Server::Event
-    def env ; end
-    def rack_hijack ; end
+  # Returns Rack-compliant env hash per Rack specification.
+  # @return [Hash] env with all required Rack keys populated
+  # MUST include all required Rack env keys (REQUEST_METHOD, PATH_INFO, etc.)
+  # SHOULD use Event instance as rack.input (body IO)
+  # MUST return fresh Hash instance for each call (apps MAY mutate env)
+  def env; end
+
+  # (OPTIONAL) Hijacks connection for raw socket access.
+  # @return [IO, nil] IO-like object per Rack hijack extension, nil if unavailable
+  # MAY be implemented; not required.
+  # MUST return nil if called after headers sent (unless trailers supported).
+  def rack_hijack; end
 end
 ```
 
-Implementations **MUST**:
+## Error Handling
 
-- Set the server's `extensions[:rack]` value to the Rack specification version they support (e.g., `[1, 3, 0].freeze`).
+Servers MUST return HTTP 500 Internal Server Error on uncaught exceptions from Rack applications.
 
-- Populate all `env` values as specified in the [Rack specifications](https://github.com/rack/rack/blob/master/SPEC.rdoc).
+## Implementation Notes
 
-- Implement a default `on_http` method in the NeoRack application passed to the server (if `on_http` is missing), so that `on_http` calls the application's `call(env)` method when a request is received.
-
-- Handle the Rack response according to the Rack specifications and send it using the NeoRack event object as described in the NeoRack specification.
-
-## NeoRack Event Instance
-
-A NeoRack server `event` instance object (herein `e`) that supports this extension **SHOULD** respond to the following method:
-
-- **`env`**: Returns a Rack-compliant `env` object in accordance with the [Rack specifications](https://github.com/rack/rack/blob/master/SPEC.rdoc).
-
-A NeoRack server `event` instance object that supports this extension **MAY** respond to the following method:
-
-- **`rack_hijack`**: Hijacks the connection and returns an IO (or IO-like) object that matches the Rack hijack extension requirements.
-
-----
-
-## Notes and Recommendations
-
-The Event object was designed to allow it to fill certain aspects and requirements set in the [Rack specifications](https://github.com/rack/rack/blob/master/SPEC.rdoc), such as functioning as the Rack::IO for the request body.
-
-It is recommended that a new Hash instance be used for the `env` and the Event instance (`e`) be stored in the `env` and used as needed.
+The Event object is designed to serve as `rack.input` (request body IO) in the env hash.
