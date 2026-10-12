@@ -1,8 +1,12 @@
 # NeoRack
 
-**A modern Ruby server-application specification designed for streaming, WebSockets, and async operations.**
+**An event-driven Ruby server-application specification for HTTP, WebSockets, Server-Sent Events, and Streaming.**
 
-NeoRack replaces Rack's CGI-based design with an event-driven API. Write Ruby web applications that stream responses, handle WebSocket connections, and manage Server-Sent Events—without workarounds or hacks.
+NeoRack is designed for live web applications, providing an alternative to Rack's CGI-style environment and response tuple. 
+
+Rack's limitations have been [documented since 2012](http://blog.plataformatec.com.br/2012/06/why-your-web-framework-should-not-adopt-rack-api/). Previous attempts to modernize Ruby's server-application interface ([Rack-Next](https://github.com/Wardrop/Rack-Next), [The Metal](https://github.com/tenderlove/the_metal)) didn't gain adoption.
+
+NeoRack takes a different approach: rather than extending Rack, it provides a clean specification built on lessons learned from over a decade of Ruby web development.
 
 ```ruby
 # A complete NeoRack application
@@ -16,23 +20,23 @@ end
 run MyApp
 ```
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [**SPEC.md**](./SPEC.md) | Full protocol specification |
+| [**Extensions**](./extensions/) | WebSockets, SSE, Pub/Sub, Cookies, REST, Rack |
+| [**Example App**](./example/) | Working application demonstrating NeoRack patterns |
+
+NeoRack is an evolving specification. The core API is stabilizing, but breaking changes may occur. We welcome your input!
+
 ---
 
 ## Getting Started
 
-### Installation
-
-NeoRack requires a compatible server. Currently supported:
-
-- [Iodine](https://github.com/boazsegev/iodine) — High-performance HTTP/WebSocket server with Rack and NeoRack support
-
-```bash
-gem install iodine
-```
-
 ### Your First Application
 
-Create `config.nru` and run with `iodine`:
+Using a compatible NeoRack server, create `config.nru`. This example uses [Iodine](https://github.com/boazsegev/iodine) 0.8.0 or newer:
 
 ```ruby
 # config.nru
@@ -54,30 +58,63 @@ iodine
 
 ## Why NeoRack?
 
-Rack's CGI-based design requires your application to return a complete response array `[status, headers, body]` before the server can send anything. This creates friction for:
+NeoRack is designed to overcome the limitations that Rack's CGI style design imposed on Ruby applications for years.
 
-- **Streaming responses** — Rack needs workarounds like `rack.hijack`
-- **WebSocket connections** — Requires non-standard extensions
-- **Server-Sent Events** — No native support
-- **Async operations** — Blocking model limits concurrency
-- **Performance** — Avoiding Rack's `HTTP_` header prefix minimizes allocations and String manipulations
+### Rack vs. NeoRack Architecture and Ecosystem
 
-NeoRack's event-driven design handles these natively.
+NeoRack trades **header flexibility** and the **gem ecosystem** for **earlier output** and **built-in WebSocket/SSE**.
 
-**When to stick with Rack:** If you rely heavily on existing Rack middleware, or use Fiber-based servers like [Falcon](https://github.com/socketry/falcon), Rack may still be the right choice.
+Ratings show what each API contract directly supports — not how a server schedules work. Architecture rows follow the [Rack 3.2.1 specification](https://github.com/rack/rack/blob/v3.2.1/SPEC.rdoc) and [NeoRack 0.0.4](./SPEC.md); the last row is a qualitative ecosystem assessment.
 
-### Features at a Glance
+**Legend:** ✅ core or official extension · 🟡 indirect or partial support · ❌ not covered by the contract
+
+| Capability | Rack 3.2.1 | NeoRack 0.0.4 | Notes |
+|------------|:----------:|:-------------:|-------|
+| **Simple request/response** | ✅ | ✅ | |
+| **Send data while still processing** | ❌ | ✅ | Rack writes only after the app returns. |
+| **Stream a response** | 🟡 | ✅ | Rack's design blocks on `each`/`call` and may require `hijack`. |
+| **Nonblocking streaming** | 🟡 | ✅ | Rack apps commonly `hijack` the socket to avoid blocking. |
+| **Change a response header** | ✅ | ❌ | First write locks NeoRack headers; Rack allows later changes. |
+| **Designed for WebSocket/SSE** | ❌ | ✅ | |
+| **Use ready-made web libraries** | ✅ | ❌ | Rack gems reduce new work; NeoRack needs native code/adapters. |
+
+#### Rack
+
+**Pros**
+
+- **Atomic response setup** — middleware can inspect status, headers, and body before consumption.
+- **Established library ecosystem** — common middleware and application tasks often have reusable gems.
+
+**Cons**
+
+- **Return-bound TTFB** — normal headers and body wait for `call` to return.
+- **Resumability burden** — waiting `each`/`call` producers retain a live execution context.
+
+#### NeoRack
+
+**Pros**
+
+- **Faster TTFB** — applications can start sending data before returning.
+- **Streaming is easy** — an event can continue to stream even after `on_http` returns.
+
+**Cons**
+
+- **Header-commit trade-off** — first output prevents later header changes.
+- **Requires discipline** — failing to call `finish` could leak a connection until it times out.
+- **New-code migration cost** — existing Rack libraries may need adapters or native replacements.
+
+### NeoRack Features at a Glance
 
 | Feature | Description |
 |---------|-------------|
-| **Event-driven API** | Call `e.write` multiple times, finish when ready |
-| **Native streaming** | No hijacking or workarounds needed |
-| **WebSocket support** | WebSockets as first-class citizens (extension) |
-| **SSE support** | Server-Sent Events as first-class citizens (extension) |
-| **Pub/Sub built-in** | Subscribe and publish across connections (extension) |
+| **Event-driven API** | Write through one request-scoped event and close with `e.finish` |
+| **Push-style streaming** | Send chunks with repeated `e.write` calls |
+| **WebSocket lifecycle** | Authentication, open, message, and close callbacks (`:ws` extension) |
+| **SSE lifecycle** | Authentication and connection callbacks (`:sse` extension) |
+| **Pub/Sub** | Subscribe and publish across connections (extension) |
 | **REST resources** | Convention-based CRUD routing (extension) |
-| **Cookies** | Simple cookie API with security options (extension) |
-| **Rack compatibility** | Host existing Rack apps (extension) |
+| **Cookies** | Request and response cookie helpers with security options (extension) |
+| **Rack adapter** | Adapt Rack applications through the versioned `:rack` extension |
 
 ---
 
@@ -127,6 +164,17 @@ module InspectorApp
     e.write_header("content-type", "text/plain")
     e.finish(info.join("\n"))
   end
+end
+```
+
+If a handler rejects a large upload, it can abandon unread input without waiting for it:
+
+```ruby
+if e.length > MAX_UPLOAD_BYTES
+  e.close_body
+  e.status = 413
+  e.finish("Payload Too Large")
+  return
 end
 ```
 
@@ -486,7 +534,7 @@ run MainApp
 
 ## Rack Compatibility
 
-Migrate gradually by running existing Rack applications alongside NeoRack code:
+Migrate gradually by running existing Rack applications alongside NeoRack code. Servers publish the supported Rack specification version through `Server.extensions[:rack]`:
 
 ```ruby
 # Servers with the :rack extension auto-wrap Rack apps
@@ -535,23 +583,5 @@ Server.on_state(:stop) do
   # Final cleanup
 end
 ```
-
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [**SPEC.md**](./SPEC.md) | Full protocol specification |
-| [**Extensions**](./extensions/) | WebSockets, SSE, Pub/Sub, Cookies, REST, Rack |
-| [**Example App**](./example/) | Working application demonstrating NeoRack patterns |
-
----
-
-## Status & Background
-
-NeoRack is an evolving specification. The core API is stabilizing, but breaking changes may occur. We welcome your input!
-
-Rack's limitations have been [documented since 2012](http://blog.plataformatec.com.br/2012/06/why-your-web-framework-should-not-adopt-rack-api/). Previous attempts to modernize Ruby's server-application interface ([Rack-Next](https://github.com/Wardrop/Rack-Next), [The Metal](https://github.com/tenderlove/the_metal)) didn't gain adoption. NeoRack takes a different approach: rather than extending Rack, it provides a clean specification built on lessons learned from over a decade of Ruby web development.
 
 ---

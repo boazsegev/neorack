@@ -61,6 +61,8 @@ Trailing slashes SHOULD be treated as equivalent (e.g., `/new` = `/new/`).
 
 ## Example Implementation
 
+The following example implementation lacks the detection of an existing `on_http` handler and the usage of the existing handler as a fallback. It's provided as a simplified example.
+
 ```ruby
 Server.instance_eval do
   def make_resource(*handlers)

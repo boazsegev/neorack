@@ -41,11 +41,33 @@ Server.instance_eval do
   end
 end
 
+class RackInput
+  def initialize(event); @event = event; end
+
+  def gets; @event.gets; end
+
+  def read(length = nil, buffer = nil)
+    data = @event.read(length, buffer)
+    return data unless data.nil? && length.nil?
+    buffer ? buffer.replace("") : ""
+  end
+
+  def each
+    return enum_for(:each) unless block_given?
+    while (line = gets)
+      yield line
+    end
+  end
+
+  def close; @event.close_body; end
+end
+
 class Server::Event
   # Returns Rack-compliant env hash per Rack specification.
   # @return [Hash] env with all required Rack keys populated
   # MUST include all required Rack env keys (REQUEST_METHOD, PATH_INFO, etc.)
-  # SHOULD use Event instance as rack.input (body IO)
+  # MUST provide a rack.input responding to gets, read, each, and close.
+  # MAY use RackInput.new(self) to adapt Event request-body methods.
   # MUST return fresh Hash instance for each call (apps MAY mutate env)
   def env; end
 
@@ -63,4 +85,4 @@ Servers MUST return HTTP 500 Internal Server Error on uncaught exceptions from R
 
 ## Implementation Notes
 
-The Event object is designed to serve as `rack.input` (request body IO) in the env hash.
+`RackInput` adapts an Event's request body to Rack's `rack.input` contract, including `each`, `close`, and Rack EOF behavior.

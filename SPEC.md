@@ -1,6 +1,6 @@
 # NeoRack - A New Server-Application Bridge Protocol
 
-**Protocol Specification Version:** `0.0.3` (`[0, 0, 3]`)
+**Protocol Specification Version:** `0.0.4` (`[0, 0, 4]`)
 
 > The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", 
 > "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and 
@@ -41,7 +41,7 @@ end
 | Rule | Requirement |
 |------|-------------|
 | Concurrent events | Different events MAY be processed concurrently |
-| Single-thread per event | Same event MUST NOT be accessed from multiple threads |
+| Single-owner event | An event MAY move between threads after prior access ends, but MUST NOT be accessed concurrently from multiple threads |
 | on_finish timing | Servers MUST NOT call on_finish until on_http returns |
 | Thread safety | Apps SHOULD be thread-safe; SHOULD NOT use global/instance mutable state |
 
@@ -61,7 +61,7 @@ The following is the **normative specification**:
 module Server
   # MUST include :neo_rack key with spec version. Keys MUST be Symbols.
   # Values MUST be semver arrays (e.g., [0, 1, 0, "alpha", 1] for "0.1.0-alpha.1")
-  def self.extensions; @extensions ||= { neo_rack: [0, 0, 3] } ; end
+  def self.extensions; @extensions ||= { neo_rack: [0, 0, 4] } ; end
 
   # Configures server to listen on url and route requests to handler.
   # @param url [String, nil] URL format (e.g., "https://localhost:3000", "unix://./sock")
@@ -215,9 +215,10 @@ class Event
   #---------------------------------------------------------------------------
 
   # Streams data to client. Returns true if accepted, false otherwise.
-  # @param data [String, IO, nil, Object] MUST accept String and nil
+  # @param data [String, IO, nil, Object] MUST accept String, IO, and nil
   #   nil -> sends pending headers (locks further write_header calls)
-  #   IO  -> server MUST call data.close (even if send fails)
+  #   IO  -> server MUST accept it as a response source and call data.close
+  #          after its transfer attempt, even if sending fails
   # First call locks headers. Multiple calls allowed (uses chunked encoding
   # or Connection:close for HTTP/1.1 if content-length not set).
   # SHOULD return false (not raise) on connection failure.
@@ -236,7 +237,7 @@ class Event
   # Request Body Reading
   #---------------------------------------------------------------------------
 
-  # Returns next line (up to \n) or nil on EOF.
+  # Returns next line (up to \n) as an ASCII-8BIT String, or nil on EOF.
   # @param limit [Integer, nil] max bytes to read (stops at \n or limit)
   def gets(limit = nil); end
 
@@ -252,6 +253,16 @@ class Event
   #   negative -> seeks to (end + pos), where -1 = EOF
   # Clamps to [0, body_length]. Returns new position.
   def seek(pos = nil); end
+
+  # Signals that the application will not read remaining request-body data.
+  # Returns true on first call, false on subsequent calls.
+  # Servers MUST stop exposing unread body data to the application and SHOULD
+  # release app-visible request-body buffers or spools as soon as practical.
+  # Subsequent gets, read, and seek calls MUST behave as a closed input stream.
+  # MUST NOT wait for unread peer data or finalize the response.
+  # Servers MAY drain/discard unread transport data to preserve reuse, or MAY
+  # close the connection instead.
+  def close_body; end
 
   #---------------------------------------------------------------------------
   # Connection Info
