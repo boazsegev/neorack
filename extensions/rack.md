@@ -68,7 +68,7 @@ class Server::Event
   # MUST include all required Rack env keys (REQUEST_METHOD, PATH_INFO, etc.)
   # MUST provide a rack.input responding to gets, read, each, and close.
   # MAY use RackInput.new(self) to adapt Event request-body methods.
-  # MUST return fresh Hash instance for each call (apps MAY mutate env)
+  # MUST return the same object on repeated calls for same event (apps may store data).
   def env; end
 
   # (OPTIONAL) Hijacks connection for raw socket access.

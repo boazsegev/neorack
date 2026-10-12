@@ -252,6 +252,7 @@ class Event
   #   >= 0     -> seeks to pos bytes from start
   #   negative -> seeks to (end + pos), where -1 = EOF
   # Clamps to [0, body_length]. Returns new position.
+  # If body is closed or empty, returns 0 (doesn't raise).
   def seek(pos = nil); end
 
   # Signals that the application will not read remaining request-body data.

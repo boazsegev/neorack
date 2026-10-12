@@ -87,10 +87,10 @@ class Server::Event
   # Formats data per EventSource spec (id:, event:, data: fields).
   def write_sse(data, id: nil, event: nil); end
 
-  # @return [Integer, Boolean]
+  # @return [Integer]
   #   Integer -> bytes pending before next on_drained
-  #   true    -> buffer not empty (if count unavailable)
-  #   false   -> buffer empty OR server never calls on_drained
+  #   1       -> buffer not empty (if count unavailable)
+  #   0       -> buffer empty OR server never calls on_drained
   def pending; end
 end
 ```
