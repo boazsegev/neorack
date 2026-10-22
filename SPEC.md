@@ -23,6 +23,7 @@ A NeoRack application is a Ruby object, singleton class, or module. The followin
 ```ruby
 # A NeoRack application with all core callbacks.
 # Applications MUST respond to on_http. MAY respond to on_finish.
+# Applications MUST be mutable.
 module ExampleApp
   # (REQUIRED) Called for every HTTP request with a unique event instance.
   # Applications MUST call e.finish for every event (MAY be after on_http returns).
@@ -67,7 +68,7 @@ module Server
   # @param url [String, nil] URL format (e.g., "https://localhost:3000", "unix://./sock")
   #   nil -> server SHOULD use reasonable default
   #   Servers MAY process url freely (ignore path, parse scheme for TLS, etc.)
-  # @param handler - MUST be a valid NeoRack application
+  # @param handler - MUST be a valid mutable NeoRack application
   # Servers MAY support multiple listen() calls for multiple addresses.
   def self.listen(url, handler); end
 
@@ -256,13 +257,8 @@ class Event
   def seek(pos = nil); end
 
   # Signals that the application will not read remaining request-body data.
-  # Returns true on first call, false on subsequent calls.
-  # Servers MUST stop exposing unread body data to the application and SHOULD
-  # release app-visible request-body buffers or spools as soon as practical.
-  # Subsequent gets, read, and seek calls MUST behave as a closed input stream.
-  # MUST NOT wait for unread peer data or finalize the response.
-  # Servers MAY drain/discard unread transport data to preserve reuse, or MAY
-  # close the connection instead.
+  # Returns true if body was open, false on subsequent calls.
+  # Once call returns, event instances MUST behave as if no payload/body is available.
   def close_body; end
 
   #---------------------------------------------------------------------------
@@ -288,6 +284,7 @@ The following is the **normative specification**:
 # Middleware MUST delegate unhandled methods to the wrapped app.
 # Middleware MAY call e.finish early to stop request propagation.
 # Middleware SHOULD NOT replace the event object (unpredictable results).
+# Middleware MUST be mutable.
 # WARNING: Replacing e.handler breaks middleware cleanup (different stack).
 class Middleware
   def initialize(app)
