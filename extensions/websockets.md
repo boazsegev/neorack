@@ -42,12 +42,12 @@ end
 
 ### on_finish Timing
 
-| Rule | Requirement |
-|------|-------------|
-| Guaranteed call | Servers MUST ALWAYS call on_finish |
+| Rule               | Requirement |
+|--------------------|-------------|
+| Guaranteed call    | Servers MUST ALWAYS call on_finish |
 | After auth failure | MUST call on_finish after failed authentication |
-| After close | MUST call on_finish after on_close |
-| After upgrade | SHOULD NOT call on_finish immediately after successful upgrade |
+| After close        | MUST call on_finish after on_close |
+| After upgrade      | SHOULD NOT call on_finish immediately after successful upgrade |
 
 ## Event Methods
 
